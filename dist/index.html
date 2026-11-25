@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Acompanhe os agentes e consulte as regras de negócio do CondoConnect.">
-  <title>PROJETO ALL · CondoConnect</title>
+  <meta name="description" content="Acompanhe o trabalho do Codex em um escritório isométrico com um andar por projeto.">
+  <title>PROJETO ALL · Escritório do Codex</title>
   <link rel="stylesheet" href="./style.css">
   <script src="./rules.js" defer></script>
   <script src="./app.js" defer></script>
@@ -14,25 +14,54 @@
     <div class="top-inner">
       <a class="brand" href="#agentes"><span class="mark" aria-hidden="true"></span>PROJETO ALL</a>
       <nav aria-label="Navegação principal">
-        <a href="#agentes" data-view="agentes" aria-current="page">Agentes</a>
+        <a href="#agentes" data-view="agentes" aria-current="page">Escritório</a>
         <a href="#regras" data-view="regras">Regras de negócio</a>
       </nav>
     </div>
   </header>
   <main class="wrap">
     <section id="agentes" aria-labelledby="team-title">
-      <div class="intro">
-        <p class="section-label">CondoConnect</p>
-        <h1 id="team-title">Painel de agentes</h1>
-        <p>Veja a tarefa de cada agente e a última atividade registrada.</p>
+      <div class="intro office-intro">
+        <div>
+          <h1 id="team-title">Escritório do Codex</h1>
+          <p>Um andar por projeto. Selecione um agente para ver a atividade no balão.</p>
+        </div>
+        <div class="connection" id="connection" role="status">Carregando escritório…</div>
       </div>
-      <div class="summary" id="summary" aria-label="Resumo do progresso"></div>
-      <div class="team-heading">
-        <h2>Equipe</h2>
-        <p id="updated" role="status">Carregando progresso…</p>
+      <div class="workspace">
+        <aside class="elevator" aria-labelledby="floors-title">
+          <h2 id="floors-title">Andares</h2>
+          <div id="floor-list" class="floor-list"></div>
+          <p id="bridge-note" class="bridge-note" hidden>As sessões deste computador aparecem no <a href="http://127.0.0.1:4173">painel local</a> quando o monitor está aberto.</p>
+        </aside>
+        <section class="office" aria-labelledby="map-current">
+          <header class="office-header">
+            <div>
+              <h2 id="map-current">Andar</h2>
+              <p id="map-meta"></p>
+            </div>
+            <label class="team-control">Equipe <select id="team-filter"></select></label>
+          </header>
+          <div class="map-scroll" tabindex="0" aria-label="Mapa do escritório. Deslize para explorar o andar.">
+            <div class="map" id="office-map">
+              <img class="office-art" src="./office-isometrico.png" width="1672" height="941" alt="Escritório em pixel art com cinco áreas coloridas, quatro estações em cada área e uma sala central.">
+              <div id="map-agents"></div>
+            </div>
+          </div>
+          <div id="team-legend" class="team-legend" aria-label="Cores das equipes"></div>
+        </section>
       </div>
-      <div class="team" id="team"></div>
-      <p class="panel-note">A coordenação registra as atividades reportadas pelos agentes. O painel local atualiza a cada 5 segundos. A versão hospedada reflete a última publicação.</p>
+      <div class="office-details">
+        <section class="detail-panel" aria-labelledby="roster-title">
+          <h2 id="roster-title">Agentes do andar</h2>
+          <div id="roster" class="roster"></div>
+        </section>
+        <section class="detail-panel" aria-labelledby="activity-title">
+          <h2 id="activity-title">Atividade</h2>
+          <div id="agent-focus" class="agent-focus"></div>
+          <ul id="live-feed" class="live-feed"></ul>
+        </section>
+      </div>
     </section>
     <section id="regras" aria-labelledby="rules-title" hidden>
       <div class="intro">
@@ -48,6 +77,6 @@
     </section>
     <noscript><p>Ative o JavaScript para visualizar o painel e o catálogo.</p></noscript>
   </main>
-  <footer class="foot wrap">PROJETO ALL <span>·</span> Acompanhamento do CondoConnect</footer>
+  <footer class="foot wrap">PROJETO ALL <span>·</span> Escritório de agentes</footer>
 </body>
 </html>

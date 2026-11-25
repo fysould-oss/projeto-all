@@ -1,36 +1,226 @@
 {
+  "teams": [
+    {
+      "id": "produto",
+      "name": "Produto e coordenação"
+    },
+    {
+      "id": "contas",
+      "name": "Contas e acesso"
+    },
+    {
+      "id": "comunidade",
+      "name": "Operações do condomínio"
+    },
+    {
+      "id": "integracoes",
+      "name": "Financeiro e integrações"
+    },
+    {
+      "id": "qualidade",
+      "name": "Qualidade e publicação"
+    }
+  ],
   "agents": [
     {
       "id": "coordenacao",
       "name": "Coordenação",
+      "teamId": "produto",
+      "seat": 0,
       "status": "concluido",
       "task": "Consolidar as regras e montar o painel.",
       "activity": "Catálogo consolidado e painel validado em computador e celular.",
       "updatedAt": "2026-11-25T20:52:16.209Z"
     },
     {
+      "id": "produto",
+      "name": "Análise de produto",
+      "teamId": "produto",
+      "seat": 1,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "planejamento",
+      "name": "Planejamento de entregas",
+      "teamId": "produto",
+      "seat": 2,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "documentacao",
+      "name": "Documentação de regras",
+      "teamId": "produto",
+      "seat": 3,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
       "id": "contas",
       "name": "Contas e acesso",
+      "teamId": "contas",
+      "seat": 0,
       "status": "concluido",
       "task": "Mapear cadastro, login, perfis e administração.",
       "activity": "Mapeou permissões e identificou diferenças entre web, API e app.",
       "updatedAt": "2026-11-25T20:46:21Z"
     },
     {
+      "id": "cadastro-perfis",
+      "name": "Cadastro e perfis",
+      "teamId": "contas",
+      "seat": 1,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "permissoes",
+      "name": "Permissões e autenticação",
+      "teamId": "contas",
+      "seat": 2,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "administracao-usuarios",
+      "name": "Administração de usuários",
+      "teamId": "contas",
+      "seat": 3,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
       "id": "comunidade",
       "name": "Operações do condomínio",
+      "teamId": "comunidade",
+      "seat": 0,
       "status": "concluido",
       "task": "Mapear unidades, chamados, chat e serviços da comunidade.",
       "activity": "Mapeou vínculos, atendimento, avaliações, reservas, comunicados e notificações.",
       "updatedAt": "2026-11-25T20:46:21Z"
     },
     {
+      "id": "vinculos-unidades",
+      "name": "Vínculos e unidades",
+      "teamId": "comunidade",
+      "seat": 1,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "atendimento",
+      "name": "Chamados e atendimento",
+      "teamId": "comunidade",
+      "seat": 2,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "convivencia",
+      "name": "Reservas e comunicados",
+      "teamId": "comunidade",
+      "seat": 3,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
       "id": "integracoes",
       "name": "Financeiro e integrações",
+      "teamId": "integracoes",
+      "seat": 0,
       "status": "concluido",
       "task": "Mapear cobranças, Pix, assinaturas, API e app.",
       "activity": "Documentou comissões, checkout piloto, mensalidades, assistente e demonstrações.",
       "updatedAt": "2026-11-25T20:46:21Z"
+    },
+    {
+      "id": "cobrancas",
+      "name": "Cobranças e comissões",
+      "teamId": "integracoes",
+      "seat": 1,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "assinaturas",
+      "name": "Assinaturas e mensalidades",
+      "teamId": "integracoes",
+      "seat": 2,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "app-api",
+      "name": "Aplicativo e API",
+      "teamId": "integracoes",
+      "seat": 3,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "qualidade",
+      "name": "Coordenação de qualidade",
+      "teamId": "qualidade",
+      "seat": 0,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "testes",
+      "name": "Testes e validação",
+      "teamId": "qualidade",
+      "seat": 1,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "revisao",
+      "name": "Revisão de código",
+      "teamId": "qualidade",
+      "seat": 2,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
+    },
+    {
+      "id": "publicacao",
+      "name": "Publicação e implantação",
+      "teamId": "qualidade",
+      "seat": 3,
+      "status": "disponivel",
+      "task": "",
+      "activity": "",
+      "updatedAt": null
     }
   ]
 }

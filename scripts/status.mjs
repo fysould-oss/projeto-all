@@ -2,9 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { readFile, rename, rm, writeFile } from 'node:fs/promises';
 
 const [id, status, task, activity] = process.argv.slice(2);
-const states = ['a-fazer', 'em-andamento', 'bloqueado', 'concluido'];
-if (!id || !states.includes(status) || !task?.trim() || !activity?.trim()) {
+const states = ['disponivel', 'a-fazer', 'em-andamento', 'bloqueado', 'concluido'];
+const taskText = task?.trim() ?? '';
+const activityText = activity?.trim() ?? '';
+if (!id || !states.includes(status) || (status !== 'disponivel' && (!taskText || !activityText))) {
   console.error('Uso: node scripts/status.mjs <agente> <status> "<tarefa>" "<atividade>"');
+  console.error('Tarefa e atividade são opcionais para o estado disponivel.');
   console.error('Estados: ' + states.join(', '));
   process.exit(1);
 }
@@ -17,7 +20,7 @@ if (!agent) {
   process.exit(1);
 }
 
-Object.assign(agent, { status, task: task.trim(), activity: activity.trim(), updatedAt: new Date().toISOString() });
+Object.assign(agent, { status, task: taskText, activity: activityText, updatedAt: new Date().toISOString() });
 const temporary = new URL('./.' + randomUUID() + '.tmp', record);
 try {
   await writeFile(temporary, JSON.stringify(snapshot, null, 2) + '\n', { flag: 'wx' });
