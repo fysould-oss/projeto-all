@@ -12,7 +12,8 @@ const assets = new Map([
   ['/online.js', 'text/javascript; charset=utf-8'],
   ['/progress.json', 'application/json; charset=utf-8'],
   ['/projects.json', 'application/json; charset=utf-8'],
-  ['/office-studio.png', 'image/png'],
+  ['/office-lobby.png', 'image/png'],
+  ['/office-sprites.png', 'image/png'],
 ]);
 const port = Number(process.env.PAINEL_PORT || 4173);
 const activity = createActivityMonitor();

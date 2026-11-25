@@ -1,7 +1,7 @@
 const pagesOrigin = 'https://fysould-oss.github.io/projeto-all/';
 const assets = new Set([
   'index.html', 'style.css', 'app.js', 'online.js', 'rules.js',
-  'projects.json', 'progress.json', 'office-studio.png',
+  'projects.json', 'progress.json', 'office-lobby.png', 'office-sprites.png', 'office-studio.png',
 ]);
 const maxBytes = 512_000;
 const sessionTimeoutMs = 75_000;
@@ -58,7 +58,9 @@ export default {
     const asset = path === '/' ? 'index.html' : path.slice(1);
     if (!assets.has(asset)) return new Response('Página indisponível', { status: 404 });
     if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405 });
-    const response = await fetch(new URL(asset, pagesOrigin), { method: request.method });
+    const assetUrl = new URL(asset, pagesOrigin);
+    assetUrl.searchParams.set('v', 'lobby-2');
+    const response = await fetch(assetUrl, { method: request.method });
     if (!response.ok) return new Response('Publicação do GitHub indisponível', { status: 503 });
     const responseHeaders = new Headers(headers);
     responseHeaders.set('Content-Type', response.headers.get('content-type') || 'application/octet-stream');
