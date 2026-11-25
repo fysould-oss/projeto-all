@@ -3,10 +3,19 @@ import path from 'node:path';
 
 const READ_LIMIT = 2 * 1024 * 1024;
 const HISTORY_LIMIT = 20;
+const CHAT_LENGTH_LIMIT = 800;
+const NO_SIGNAL_DELAY = 10 * 60 * 1000;
 const DAY = 24 * 60 * 60 * 1000;
 const ROLLOUT_FILE = /^rollout-.+\.jsonl$/i;
 const IDENTIFIER = /^[a-z0-9_-]{1,128}$/i;
 const AGENT_PATH = /^\/?[a-z0-9_-]{1,32}(?:\/[a-z0-9_-]{1,32}){0,7}$/i;
+const CHAT_PHASES = new Set(['commentary', 'final', 'final_answer']);
+const HIDDEN_CREDENTIAL = '[credencial ocultada]';
+const HIDDEN_PATH = '[caminho ocultado]';
+const ASSIGNED_CREDENTIAL = /(\b(?:[\w-]*(?:(?:api|access|private|secret)[ _-]?key|token|password|passwd|passphrase|senha|secret|credentials?|signature|[_-]pass)|authorization|cookie|session|pass|sig)["'`]?[ \t]*[:=][ \t]*|\B--(?:api-key|token|password|client-secret)(?:[ \t]+|=))(?:(?:bearer|basic)[ \t]+[a-z0-9._~+\/=-]+|"[^"\n]*"|'[^'\n]*'|`[^`\n]*`|[^\s<>,;\])}&]+)/gi;
+const PROVIDER_TOKEN = /\b(?:sk[-_]|rk_live_|pk_live_|gh[pousr]_|github_pat_|AIza|AKIA|ASIA|xox[baprs]-|npm_)[a-z0-9_-]{12,}|\beyJ[a-z0-9_-]+\.[a-z0-9_-]+\.[a-z0-9_-]+/gi;
+const QUOTED_PATH = /(["'`<])(?:[a-z]:[\\/]+|\\\\|\/{1,2})[^\n"'`<>]+(?=["'`>])/gi;
+const ABSOLUTE_PATH = /(?<![\p{L}\p{N}\\/])(?:[a-z]:[\\/]+|\\\\|(?<!:)\/\/|\/(?!\/))[^\s`"'<>()\[\]{},;]+/giu;
 
 const toolLabels = new Map([
   ['exec_command', 'Terminal'],
@@ -88,12 +97,14 @@ function initialState(meta, timestamp, mtimeMs, offset) {
       parentId,
       cwd: workspace(meta.cwd),
       agentPath,
+      agentRole: identifier(meta.agent_role) || identifier(spawn?.agent_role),
       name: '',
       status: 'disponivel',
       task: parentId ? 'Tarefa delegada' : 'Sessão do Codex',
       activity: 'Aguardando atividade',
       updatedAt: isoDate(timestamp) || isoDate(meta.timestamp) || isoDate(mtimeMs),
       events: [],
+      chat: [],
     },
   };
 }
@@ -112,6 +123,39 @@ function update(state, at, activity, status) {
   if (thread.events.length > HISTORY_LIMIT) thread.events.shift();
 }
 
+function sanitizeChat(raw, cwd) {
+  let text = raw.replace(/\r\n?/g, '\n').replace(/\t/g, ' ')
+    .replace(/[\u0000-\u0009\u000b-\u001f\u007f-\u009f]|\p{Cf}/gu, '')
+    .replace(/-----BEGIN [A-Z -]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z -]*PRIVATE KEY-----|$)/gi, HIDDEN_CREDENTIAL)
+    .replace(/\b([a-z][a-z0-9+.-]*:\/\/)[^@\/\s]+@/gi, '$1' + HIDDEN_CREDENTIAL + '@')
+    .replace(ASSIGNED_CREDENTIAL, '$1' + HIDDEN_CREDENTIAL)
+    .replace(/\b(bearer|basic)[ \t]+[a-z0-9._~+\/=-]{8,}/gi, '$1 ' + HIDDEN_CREDENTIAL)
+    .replace(PROVIDER_TOKEN, HIDDEN_CREDENTIAL)
+    .replace(/\bfile:\/\/[^\s"'`<>()]+/gi, HIDDEN_PATH)
+    .replace(QUOTED_PATH, '$1' + HIDDEN_PATH);
+  if (cwd && cwd.length > 3) {
+    for (const variant of new Set([cwd, cwd.replaceAll('\\', '/'), cwd.replaceAll('/', '\\')])) {
+      text = text.replaceAll(variant, HIDDEN_PATH);
+    }
+  }
+  const sanitized = text.replace(ABSOLUTE_PATH, HIDDEN_PATH).trim();
+  return sanitized.length > CHAT_LENGTH_LIMIT ? Array.from(sanitized).slice(0, CHAT_LENGTH_LIMIT).join('') : sanitized;
+}
+
+function recordChat(state, phase, raw, at) {
+  if (!CHAT_PHASES.has(phase) || typeof raw !== 'string') return;
+  const text = sanitizeChat(raw, state.thread.cwd);
+  if (!text) return;
+  const commentary = phase === 'commentary';
+  update(state, at, commentary ? 'Agente enviou atualização' : 'Agente enviou a resposta final',
+    commentary ? 'em-andamento' : 'concluido');
+  const chat = state.thread.chat;
+  const previous = chat.findIndex(message => message.text === text);
+  if (previous >= 0) chat.splice(previous, 1);
+  chat.push({ at, text });
+  if (chat.length > HISTORY_LIMIT) chat.shift();
+}
+
 function labelTool(payload) {
   const name = typeof payload.name === 'string' ? payload.name : '';
   if (toolLabels.has(name)) return toolLabels.get(name);
@@ -123,6 +167,12 @@ function labelTool(payload) {
 
 function applyResponse(state, payload, at) {
   const kind = payload.type;
+  if (kind === 'message' && payload.role === 'assistant' && Array.isArray(payload.content) && CHAT_PHASES.has(payload.phase)) {
+    const text = payload.content.filter(item => item?.type === 'output_text' && typeof item.text === 'string')
+      .map(item => item.text).join('\n');
+    recordChat(state, payload.phase, text, at);
+    return;
+  }
   const callId = identifier(payload.call_id);
   if (kind === 'function_call' || kind === 'custom_tool_call') {
     const label = labelTool(payload);
@@ -156,7 +206,7 @@ function applyEvent(state, payload, at) {
       update(state, at, 'Turno interrompido', 'bloqueado');
       break;
     case 'agent_message':
-      if (payload.phase === 'commentary') update(state, at, 'Agente enviou atualização', 'em-andamento');
+      recordChat(state, payload.phase, payload.message, at);
       break;
     case 'sub_agent_activity':
       if (payload.kind === 'started') update(state, at, 'Subagente iniciado', 'em-andamento');
@@ -190,6 +240,8 @@ function applyLine(state, bytes) {
   if (type === 'turn_context') {
     const cwd = workspace(payload.cwd);
     if (cwd) state.thread.cwd = cwd;
+    const role = identifier(payload.agent_role);
+    if (role) state.thread.agentRole = role;
   }
 }
 
@@ -248,7 +300,8 @@ export function createCodexReader({ codexHome, maxDays = 7 }) {
     const result = new Map();
     const discovered = [];
     const current = new Set();
-    const cutoff = Date.now() - maxDays * DAY;
+    const now = Date.now();
+    const cutoff = now - maxDays * DAY;
     await discover(path.join(codexHome, 'sessions'), discovered);
     await discover(path.join(codexHome, 'archived_sessions'), discovered);
     for (const filename of discovered) {
@@ -271,7 +324,11 @@ export function createCodexReader({ codexHome, maxDays = 7 }) {
         if (!state) continue;
         const thread = state.thread;
         if (!result.has(thread.id) || result.get(thread.id).updatedAt < thread.updatedAt) {
-          result.set(thread.id, structuredClone(thread));
+          const view = structuredClone(thread);
+          if (view.status === 'em-andamento' && now - Date.parse(view.updatedAt) > NO_SIGNAL_DELAY) {
+            view.status = 'sem-sinal';
+          }
+          result.set(thread.id, view);
         }
       } catch (error) {
         if (!['ENOENT', 'ENOTDIR', 'EBUSY', 'EPERM', 'EACCES'].includes(error.code)) throw error;

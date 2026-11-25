@@ -1,6 +1,8 @@
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, isAbsolute, join, normalize } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createCodexReader } from './codex.mjs';
 import { createCloudReader } from './cloud.mjs';
 import { createWorkspaceMonitor } from './git.mjs';
@@ -8,10 +10,50 @@ import { createWorkspaceMonitor } from './git.mjs';
 const token = (value) => createHash('sha256').update(value).digest('hex').slice(0, 24);
 const normalizeRoot = (root) => process.platform === 'win32' ? normalize(root).toLowerCase() : normalize(root);
 const latestFirst = (left, right) => Date.parse(right.updatedAt) - Date.parse(left.updatedAt);
-const dedicatedTeams = new Map([
+const dedicatedRoles = new Map([
   ['contas', 'contas'], ['comunidade', 'comunidade'], ['integracoes', 'integracoes'],
   ['qualidade', 'qualidade'], ['qa', 'qualidade'], ['testes', 'qualidade'],
 ]);
+const projectDirectory = fileURLToPath(new URL('../../', import.meta.url));
+const pinnedProjects = JSON.parse(readFileSync(new URL('../dist/projects.json', import.meta.url), 'utf8'))
+  .map(({ directories, ...project }) => ({ ...project, cwds: directories.map(directory => join(projectDirectory, directory)) }));
+const pinnedByName = new Map(pinnedProjects.flatMap(project => {
+  const slug = /^https:\/\/github\.com\/([\w.-]+\/[\w.-]+)\/?$/i.exec(project.remoteUrl)?.[1];
+  return [[project.name.toLowerCase(), project.id], ...(slug ? [[slug.toLowerCase(), project.id]] : [])];
+}));
+
+function workspaceMetadata(workspace) {
+  return {
+    branch: workspace?.branch ?? null,
+    changes: workspace?.changes ?? null,
+    lastChangeAt: workspace?.lastChangeAt ?? null,
+    isRepository: workspace?.isRepository ?? false,
+  };
+}
+
+function pinnedProject({ id, name, remoteUrl }, workspace) {
+  return {
+    id, name, remoteUrl, pinned: true, available: Boolean(workspace),
+    ...workspaceMetadata(workspace), updatedAt: null, agents: [],
+  };
+}
+
+function combineCloudProjects(projects, cloudProjects) {
+  const byId = new Map(projects.map(project => [project.id, project]));
+  for (const cloud of cloudProjects) {
+    const local = byId.get(pinnedByName.get(cloud.name.trim().toLowerCase()));
+    if (!local) {
+      byId.set(cloud.id, cloud);
+      continue;
+    }
+    byId.set(local.id, {
+      ...local,
+      agents: [...local.agents, ...cloud.agents].sort(latestFirst),
+      updatedAt: [local.updatedAt, cloud.updatedAt].filter(Boolean).sort().at(-1) ?? null,
+    });
+  }
+  return [...byId.values()];
+}
 
 export function createActivityMonitor() {
   const reader = createCodexReader({
@@ -19,7 +61,7 @@ export function createActivityMonitor() {
   });
   const workspaces = createWorkspaceMonitor();
   const cloud = createCloudReader();
-  let snapshot = { status: 'starting', projects: [] };
+  let snapshot = { status: 'starting', projects: pinnedProjects.map(project => pinnedProject(project)) };
   let cloudProjects = [];
   let pending;
   let pendingCloud;
@@ -29,42 +71,56 @@ export function createActivityMonitor() {
     try {
       const threads = (await reader.scan()).filter(thread => isAbsolute(thread.cwd));
       if (closed) return;
-      const byCwd = await workspaces.scan([...new Set(threads.map(thread => thread.cwd))]);
+      const byCwd = await workspaces.scan([...new Set([
+        ...pinnedProjects.flatMap(project => project.cwds), ...threads.map(thread => thread.cwd),
+      ])]);
+      if (closed) return;
       const byRoot = new Map();
+      const projects = pinnedProjects.map(definition => {
+        const candidates = definition.cwds.map(cwd => byCwd.get(cwd)).filter(Boolean);
+        const project = pinnedProject(definition, candidates.find(workspace => workspace.isRepository));
+        for (const workspace of candidates) byRoot.set(normalizeRoot(workspace.root), project);
+        return project;
+      });
       for (const thread of threads.sort(latestFirst)) {
         const workspace = byCwd.get(thread.cwd);
         const root = workspace?.root || thread.cwd;
         const key = normalizeRoot(root);
-        if (!byRoot.has(key)) {
-          byRoot.set(key, {
+        let project = byRoot.get(key);
+        if (!project) {
+          project = {
             id: token(key),
             name: workspace?.name || basename(root) || 'Projeto local',
-            branch: workspace?.branch ?? null,
-            changes: workspace?.changes ?? null,
-            lastChangeAt: workspace?.lastChangeAt ?? null,
+            ...workspaceMetadata(workspace),
             updatedAt: thread.updatedAt,
-            isRepository: workspace?.isRepository ?? false,
             agents: [],
-          });
+          };
+          byRoot.set(key, project);
+          projects.push(project);
         }
-        const agentRole = thread.agentPath.split('/').at(-1);
-        const name = thread.parentId ? (thread.name || (agentRole && agentRole !== 'root'
-          ? agentRole[0].toUpperCase() + agentRole.slice(1).replaceAll(/[-_]/g, ' ')
+        project.updatedAt ??= thread.updatedAt;
+        const pathRole = thread.agentPath.split('/').at(-1);
+        const roleId = thread.parentId
+          ? dedicatedRoles.get(thread.agentRole.toLowerCase()) ?? dedicatedRoles.get(pathRole.toLowerCase())
+          : 'coordenacao';
+        const name = thread.parentId ? (thread.name || (pathRole && pathRole !== 'root'
+          ? pathRole[0].toUpperCase() + pathRole.slice(1).replaceAll(/[-_]/g, ' ')
           : 'Subagente ' + token(thread.id).slice(0, 4)))
           : 'Codex ' + token(thread.id).slice(0, 4);
-        const project = byRoot.get(key);
         project.agents.push({
           id: token(thread.id),
           name,
-          teamId: thread.parentId ? (dedicatedTeams.get(agentRole) || null) : 'produto',
+          teamId: roleId === 'coordenacao' ? 'produto' : roleId ?? null,
+          ...(roleId ? { roleId } : {}),
           status: thread.status,
           task: thread.task,
           activity: thread.activity,
           updatedAt: thread.updatedAt,
           events: thread.events,
+          chat: thread.chat,
         });
       }
-      snapshot = { status: 'connected', projects: [...byRoot.values()] };
+      snapshot = { status: 'connected', projects };
     } catch {
       snapshot = { ...snapshot, status: 'unavailable' };
     }
@@ -83,7 +139,7 @@ export function createActivityMonitor() {
   const timer = setInterval(scheduleRefresh, 2200);
   timer.unref();
   return {
-    getSnapshot: () => ({ ...snapshot, projects: [...snapshot.projects, ...cloudProjects] }),
+    getSnapshot: () => ({ ...snapshot, projects: combineCloudProjects(snapshot.projects, cloudProjects) }),
     close() {
       closed = true;
       clearInterval(timer);

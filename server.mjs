@@ -1,17 +1,22 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { createActivityMonitor } from './monitor/activity.mjs';
+import { startOnlineRelay } from './monitor/relay.mjs';
+import { readRelayCredential } from './monitor/credential.mjs';
 
 const assets = new Map([
   ['/index.html', 'text/html; charset=utf-8'],
   ['/style.css', 'text/css; charset=utf-8'],
   ['/app.js', 'text/javascript; charset=utf-8'],
   ['/rules.js', 'text/javascript; charset=utf-8'],
+  ['/online.js', 'text/javascript; charset=utf-8'],
   ['/progress.json', 'application/json; charset=utf-8'],
-  ['/office-isometrico.png', 'image/png'],
+  ['/projects.json', 'application/json; charset=utf-8'],
+  ['/office-studio.png', 'image/png'],
 ]);
 const port = Number(process.env.PAINEL_PORT || 4173);
 const activity = createActivityMonitor();
+const closeRelay = startOnlineRelay(activity.getSnapshot, await readRelayCredential());
 const headers = {
   'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
@@ -57,4 +62,7 @@ const server = createServer(async (request, response) => {
 }).listen(port, '127.0.0.1', () => {
   console.log('Painel disponível em http://127.0.0.1:' + port);
 });
-server.on('close', () => activity.close());
+server.on('close', () => {
+  closeRelay();
+  activity.close();
+});

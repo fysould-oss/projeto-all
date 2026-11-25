@@ -1,0 +1,18 @@
+[
+  {
+    "id": "sisc",
+    "name": "sisc",
+    "directories": ["sisc"]
+  },
+  {
+    "id": "sisc-test",
+    "name": "sisc-test",
+    "directories": ["sisc-test"]
+  },
+  {
+    "id": "projeto-all",
+    "name": "projeto-all",
+    "remoteUrl": "https://github.com/fysould-oss/projeto-all",
+    "directories": ["PROJETO ALL", "projeto-all"]
+  }
+]

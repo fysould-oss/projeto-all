@@ -7,6 +7,7 @@
   <title>PROJETO ALL · Escritório do Codex</title>
   <link rel="stylesheet" href="./style.css">
   <script src="./rules.js" defer></script>
+  <script src="./online.js" defer></script>
   <script src="./app.js" defer></script>
 </head>
 <body>
@@ -39,12 +40,13 @@
             <div>
               <h2 id="map-current">Andar</h2>
               <p id="map-meta"></p>
+              <a id="project-repository" class="repo-link" target="_blank" rel="noopener noreferrer" hidden>Ver no GitHub</a>
             </div>
             <label class="team-control">Equipe <select id="team-filter"></select></label>
           </header>
           <div class="map-scroll" tabindex="0" aria-label="Mapa do escritório. Deslize para explorar o andar.">
             <div class="map" id="office-map">
-              <img class="office-art" src="./office-isometrico.png" width="1672" height="941" alt="Escritório em pixel art com cinco áreas coloridas, quatro estações em cada área e uma sala central.">
+              <img class="office-art" src="./office-studio.png" width="1672" height="941" alt="Escritório isométrico com estações de trabalho para cinco equipes.">
               <div id="map-agents"></div>
             </div>
           </div>
@@ -57,9 +59,19 @@
           <div id="roster" class="roster"></div>
         </section>
         <section class="detail-panel" aria-labelledby="activity-title">
-          <h2 id="activity-title">Atividade</h2>
+          <h2 id="activity-title">Agente selecionado</h2>
           <div id="agent-focus" class="agent-focus"></div>
-          <ul id="live-feed" class="live-feed"></ul>
+          <div class="detail-tabs" role="tablist" aria-label="Detalhes do agente">
+            <button class="detail-tab" id="activity-tab" type="button" role="tab" aria-controls="activity-panel" aria-selected="true">Atividade</button>
+            <button class="detail-tab" id="chat-tab" type="button" role="tab" aria-controls="chat-panel" aria-selected="false" tabindex="-1">Conversas</button>
+          </div>
+          <div id="activity-panel" role="tabpanel" aria-labelledby="activity-tab" tabindex="0">
+            <ul id="live-feed" class="live-feed"></ul>
+          </div>
+          <div id="chat-panel" role="tabpanel" aria-labelledby="chat-tab" tabindex="0" hidden>
+            <p id="chat-empty" class="chat-empty"></p>
+            <ol id="agent-chat" class="chat-feed"></ol>
+          </div>
         </section>
       </div>
     </section>
