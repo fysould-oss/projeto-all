@@ -22,19 +22,19 @@ const board = Object.fromEntries([
 const detailTabs = [...document.querySelectorAll('.detail-tab')];
 const local = ['127.0.0.1', 'localhost'].includes(location.hostname);
 const roleDesks = {
-  coordenacao: [830, 252],
-  contas: [430, 306],
-  comunidade: [1248, 305],
-  integracoes: [414, 488],
-  qualidade: [1259, 489],
+  coordenacao: [818, 150],
+  contas: [430, 345],
+  comunidade: [1237, 345],
+  integracoes: [683, 402],
+  qualidade: [1091, 401],
 };
-const flexibleDesks = [[832, 487], [380, 687], [829, 687], [1291, 690]];
+const flexibleDesks = [[280, 487], [1394, 489], [621, 561], [1158, 565]];
 const selections = new Map();
 const seatAssignments = new Map();
 let catalog;
 let projectManifest;
 let latest = { status: 'starting', projects: [] };
-let floorKey = '';
+let floorKey = new URLSearchParams(location.search).get('andar') || '';
 let renderedFloor = '';
 let lastLive = '';
 let lastCatalog = '';
@@ -128,10 +128,10 @@ function seatsFor(floor) {
     seated.set(flexibleDesks.length - 1, selected);
   }
   const fixed = [...roleAgents].map(([roleId, agent]) => ({
-    ...agent, point: roleDesks[roleId], teamId: agentTeam(agent), lead: roleId === 'coordenacao',
+    ...agent, point: roleDesks[roleId], teamId: agentTeam(agent), avatarRole: roleId, lead: roleId === 'coordenacao',
   }));
   return [...fixed, ...[...seated].map(([slot, agent]) => ({
-    ...agent, point: flexibleDesks[slot], teamId: agentTeam(agent),
+    ...agent, point: flexibleDesks[slot], teamId: agentTeam(agent), avatarRole: 'flex', lead: false,
   }))];
 }
 
@@ -150,7 +150,7 @@ function centerSelectedSeat() {
   const mapBounds = map.getBoundingClientRect();
   const pinBounds = pin.getBoundingClientRect();
   if (pinBounds.left < mapBounds.left + 75 || pinBounds.right > mapBounds.right - 75) {
-    map.scrollLeft += pinBounds.left - mapBounds.left - map.clientWidth / 2;
+    map.scrollLeft += pinBounds.left + pinBounds.width / 2 - mapBounds.left - map.clientWidth / 2;
   }
 }
 
@@ -175,6 +175,7 @@ function seatMarker(agent, selected, preview) {
   const initials = agent.name.trim().split(/\s+/u).slice(0, 2)
     .map(part => part[0]).join('').toLocaleUpperCase('pt-BR');
   const avatar = element('span', 'agent-avatar', initials);
+  avatar.dataset.avatar = agent.avatarRole;
   avatar.setAttribute('aria-hidden', 'true');
   button.append(avatar);
   seat.append(button);
@@ -267,6 +268,7 @@ function renderOffice() {
     || availableFloors.find(project => !project.archive && project.agents.some(agent => agent.status === 'em-andamento'))
     || availableFloors[0];
   floorKey = floor.id;
+  window.setLiveOfficeFloor?.(floorKey);
   board['floor-list'].replaceChildren(...availableFloors.map((item, index) => floorButton(item, index, item.id === floor.id)));
   board['map-current'].textContent = floor.name;
   const fileSummary = floor.changes === 1 ? '1 arquivo com alterações no Git' : floor.changes + ' arquivos com alterações no Git';
@@ -387,7 +389,7 @@ async function refreshOffice() {
         ? (local ? 'Monitor local ativo' : 'Monitor online ativo') : 'Aguardando sessões',
       starting: 'Procurando sessões…',
       unavailable: 'Monitor temporariamente indisponível',
-    }[latest.status] : 'Histórico publicado';
+    }[latest.status] : 'Visualização pública';
     if (board.connection.textContent !== label) board.connection.textContent = label;
     board.connection.classList.toggle('live', observing && latest.status === 'connected');
     board['bridge-note'].hidden = observing;

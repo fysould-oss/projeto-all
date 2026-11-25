@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Acompanhe o trabalho do Codex em um escritório isométrico com um andar por projeto.">
   <title>PROJETO ALL · Escritório do Codex</title>
-  <link rel="stylesheet" href="./style.css">
-  <script src="./rules.js" defer></script>
-  <script src="./online.js" defer></script>
-  <script src="./app.js" defer></script>
+  <link rel="stylesheet" href="./style.css?v=lobby-2">
+  <script src="./rules.js?v=lobby-2" defer></script>
+  <script src="./online.js?v=lobby-2" defer></script>
+  <script src="./app.js?v=lobby-2" defer></script>
 </head>
 <body>
   <header class="top">
@@ -27,13 +27,16 @@
           <h1 id="team-title">Escritório do Codex</h1>
           <p>Um andar por projeto. Selecione um agente para ver a atividade no balão.</p>
         </div>
-        <div class="connection" id="connection" role="status">Carregando escritório…</div>
+        <div class="office-actions">
+          <div class="connection" id="connection" role="status">Carregando escritório…</div>
+          <a class="live-office-link" id="live-office-link" href="https://projeto-all-condoconnect.sunnyode3.chatgpt.site/">Abrir painel ao vivo</a>
+        </div>
       </div>
       <div class="workspace">
         <aside class="elevator" aria-labelledby="floors-title">
           <h2 id="floors-title">Andares</h2>
           <div id="floor-list" class="floor-list"></div>
-          <p id="bridge-note" class="bridge-note" hidden>As sessões deste computador aparecem no <a href="http://127.0.0.1:4173">painel local</a> quando o monitor está aberto.</p>
+          <p id="bridge-note" class="bridge-note" hidden>Os agentes e as conversas aparecem no painel ao vivo após o login com sua conta do ChatGPT.</p>
         </aside>
         <section class="office" aria-labelledby="map-current">
           <header class="office-header">
@@ -42,11 +45,14 @@
               <p id="map-meta"></p>
               <a id="project-repository" class="repo-link" target="_blank" rel="noopener noreferrer" hidden>Ver no GitHub</a>
             </div>
-            <label class="team-control">Equipe <select id="team-filter"></select></label>
+            <div class="office-controls">
+              <label class="team-control">Equipe <select id="team-filter"></select></label>
+              <button id="zoom-office" class="zoom-office" type="button" aria-controls="office-map" aria-pressed="false" hidden>Ampliar sala</button>
+            </div>
           </header>
-          <div class="map-scroll" tabindex="0" aria-label="Mapa do escritório. Deslize para explorar o andar.">
+          <div class="map-scroll" tabindex="0" aria-label="Mapa do escritório. Quando ampliado, deslize para explorar o andar.">
             <div class="map" id="office-map">
-              <img class="office-art" src="./office-studio.png" width="1672" height="941" alt="Escritório isométrico com estações de trabalho para cinco equipes.">
+              <img class="office-art" src="./office-lobby.png" width="1672" height="941" alt="Sala isométrica em pixel art com nove estações de trabalho e uma área de descanso.">
               <div id="map-agents"></div>
             </div>
           </div>
