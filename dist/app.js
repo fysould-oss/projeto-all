@@ -15,7 +15,6 @@ const search = document.querySelector('#rule-search');
 const dateFormat = new Intl.DateTimeFormat('pt-BR', {
   dateStyle: 'short', timeStyle: 'short',
 });
-const originalRepository = 'https://github.com/etecab/sisc-test/blob/f7846b3/';
 const board = Object.fromEntries([
   'connection', 'floor-list', 'bridge-note', 'map-current', 'map-meta', 'project-repository',
   'team-filter', 'map-agents', 'team-legend', 'roster', 'agent-focus', 'live-feed', 'agent-chat', 'chat-empty',
@@ -408,9 +407,7 @@ function ruleItem(rule) {
     const references = element('p', 'sources');
     rule.sources.forEach((source, index) => {
       if (index) references.append(' · ');
-      const link = element('a', '', source);
-      link.href = originalRepository + source;
-      references.append(link);
+      references.append(element('code', '', source));
     });
     item.append(references);
   }
