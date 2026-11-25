@@ -1,0 +1,36 @@
+{
+  "agents": [
+    {
+      "id": "coordenacao",
+      "name": "Coordenação",
+      "status": "concluido",
+      "task": "Consolidar as regras e montar o painel.",
+      "activity": "Catálogo consolidado e painel validado em computador e celular.",
+      "updatedAt": "2026-11-25T20:52:16.209Z"
+    },
+    {
+      "id": "contas",
+      "name": "Contas e acesso",
+      "status": "concluido",
+      "task": "Mapear cadastro, login, perfis e administração.",
+      "activity": "Mapeou permissões e identificou diferenças entre web, API e app.",
+      "updatedAt": "2026-11-25T20:46:21Z"
+    },
+    {
+      "id": "comunidade",
+      "name": "Operações do condomínio",
+      "status": "concluido",
+      "task": "Mapear unidades, chamados, chat e serviços da comunidade.",
+      "activity": "Mapeou vínculos, atendimento, avaliações, reservas, comunicados e notificações.",
+      "updatedAt": "2026-11-25T20:46:21Z"
+    },
+    {
+      "id": "integracoes",
+      "name": "Financeiro e integrações",
+      "status": "concluido",
+      "task": "Mapear cobranças, Pix, assinaturas, API e app.",
+      "activity": "Documentou comissões, checkout piloto, mensalidades, assistente e demonstrações.",
+      "updatedAt": "2026-11-25T20:46:21Z"
+    }
+  ]
+}
