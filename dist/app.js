@@ -150,7 +150,7 @@ function centerSelectedSeat() {
   const mapBounds = map.getBoundingClientRect();
   const pinBounds = pin.getBoundingClientRect();
   if (pinBounds.left < mapBounds.left + 75 || pinBounds.right > mapBounds.right - 75) {
-    map.scrollLeft += pinBounds.left - mapBounds.left - map.clientWidth / 2;
+    map.scrollLeft += pinBounds.left + pinBounds.width / 2 - mapBounds.left - map.clientWidth / 2;
   }
 }
 

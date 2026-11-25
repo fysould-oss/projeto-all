@@ -18,7 +18,8 @@ if (zoomButton) {
     } else {
       const focusedSeat = scroll.querySelector('.seat-button[aria-pressed="true"]');
       if (focusedSeat) {
-        scroll.scrollLeft += focusedSeat.getBoundingClientRect().left - scroll.getBoundingClientRect().left - scroll.clientWidth / 2;
+        const seat = focusedSeat.getBoundingClientRect();
+        scroll.scrollLeft += seat.left + seat.width / 2 - scroll.getBoundingClientRect().left - scroll.clientWidth / 2;
       }
     }
   });
