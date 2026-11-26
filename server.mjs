@@ -13,6 +13,8 @@ const assets = new Map([
   ['/progress.json', 'application/json; charset=utf-8'],
   ['/projects.json', 'application/json; charset=utf-8'],
   ['/office-lobby.png', 'image/png'],
+  ['/office-floor.webp', 'image/webp'],
+  ['/office-mobile.webp', 'image/webp'],
   ['/office-sprites.png', 'image/png'],
 ]);
 const port = Number(process.env.PAINEL_PORT || 4173);
