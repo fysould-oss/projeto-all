@@ -1,28 +1,28 @@
 'use strict';
 
 const statusLabels = {
-  disponivel: 'Disponível',
+  disponivel: 'Dispon�vel',
   'a-fazer': 'A fazer',
   'em-andamento': 'Em andamento',
   bloqueado: 'Bloqueado',
-  concluido: 'Concluído',
+  concluido: 'Conclu�do',
   'sem-sinal': 'Sem sinal',
-  registrado: 'Registro histórico',
+  registrado: 'Registro hist�rico',
 };
 const sourceLabels = {
   local: 'Monitor local',
   cloud: 'Codex Cloud',
   mixed: 'Local + nuvem',
-  catalog: 'Catálogo histórico',
+  catalog: 'Cat�logo hist�rico',
 };
 const sections = ['agentes', 'regras'];
 const statusOrder = ['em-andamento', 'bloqueado', 'sem-sinal', 'a-fazer', 'concluido', 'disponivel'];
 const roleLabels = {
-  coordenacao: 'Coordenação',
+  coordenacao: 'Coordena��o',
   contas: 'Contas e acesso',
-  comunidade: 'Operações do condomínio',
-  integracoes: 'Financeiro e integrações',
-  qualidade: 'Qualidade e publicação',
+  comunidade: 'Opera��es do condom�nio',
+  integracoes: 'Financeiro e integra��es',
+  qualidade: 'Qualidade e publica��o',
 };
 const dateFormat = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 const local = ['127.0.0.1', 'localhost'].includes(location.hostname);
@@ -125,10 +125,10 @@ function validDate(value) {
 }
 
 function timeLabel(value) {
-  return validDate(value) ? dateFormat.format(new Date(value)) : 'Não informado';
+  return validDate(value) ? dateFormat.format(new Date(value)) : 'N�o informado';
 }
 
-function dateTime(value, fallback = 'Não informado') {
+function dateTime(value, fallback = 'N�o informado') {
   const node = element('time', '', validDate(value) ? timeLabel(value) : fallback);
   if (validDate(value)) node.dateTime = new Date(value).toISOString();
   return node;
@@ -149,13 +149,13 @@ function agentTeam(agent) {
 }
 
 function teamName(teamId) {
-  return catalog?.teams?.find(team => team.id === teamId)?.name || 'Equipe não informada';
+  return catalog?.teams?.find(team => team.id === teamId)?.name || 'Equipe n�o informada';
 }
 
 function roleName(agent) {
   if (agent?.roleId && roleLabels[agent.roleId]) return roleLabels[agent.roleId];
   const historic = catalog?.agents?.find(post => post.id === agent?.roleId);
-  return historic?.name || (agentTeam(agent) ? teamName(agentTeam(agent)) : 'Função não informada');
+  return historic?.name || (agentTeam(agent) ? teamName(agentTeam(agent)) : 'Fun��o n�o informada');
 }
 
 function agentActivity(agent) {
@@ -163,7 +163,7 @@ function agentActivity(agent) {
 }
 
 function sourceLabel(source) {
-  return sourceLabels[source] || 'Origem não informada';
+  return sourceLabels[source] || 'Origem n�o informada';
 }
 
 function sourceClass(source) {
@@ -177,7 +177,7 @@ function floors() {
     .map(agent => ({ ...agent, status: 'registrado', source: 'catalog' }));
   const archive = {
     id: 'catalog',
-    name: 'Catálogo histórico · CondoConnect',
+    name: 'Cat�logo hist�rico � CondoConnect',
     agents: history,
     archive: true,
     source: 'catalog',
@@ -194,6 +194,7 @@ function floors() {
       ...(project || {}),
       id: definition.id,
       name: definition.name || project?.name || definition.id,
+      delivery: definition.delivery,
       remoteUrl: definition.remoteUrl || project?.remoteUrl,
       pinned: true,
       agents: Array.isArray(project?.agents) ? project.agents : [],
@@ -204,14 +205,13 @@ function floors() {
 }
 
 function setFloorDescription(floor) {
-  if (floor.archive) return 'Registro histórico';
-  if (floor.available === false) return 'Pasta local indisponível';
-  if (!local && typeof window.fetchOnlineActivity !== 'function') return 'Visão pública · sessões privadas';
-  if (floor.source === 'cloud') return 'Codex Cloud';
+  if (floor.archive) return 'Registro hist�rico';
+  if (!local && typeof window.fetchOnlineActivity !== 'function') return 'Acompanhamento privado';
+  if (floor.available === false) return 'Pasta local indispon�vel';
+  if (latest.status === 'unavailable') return 'Sem sinal do monitor';
+  if (latest.status === 'starting' || !floor.source) return 'Aguardando o monitor';
   const total = floor.agents.length;
-  const running = floor.agents.filter(agent => safeStatus(agent.status) === 'em-andamento').length;
-  return running ? `${running} ${running === 1 ? 'ativa' : 'ativas'} · ${total} observada${total === 1 ? '' : 's'}`
-    : `${total} ${total === 1 ? 'sessão observada' : 'sessões observadas'}`;
+  return total ? `${total} ${total === 1 ? 'sess�o observada' : 'sess�es observadas'}` : 'Nenhuma sess�o observada';
 }
 
 function floorButton(floor, index, active) {
@@ -221,8 +221,18 @@ function floorButton(floor, index, active) {
   const label = element('span', 'floor-label');
   const title = element('strong', '', floor.name);
   const description = element('span', '', setFloorDescription(floor));
-  const activity = element('span', 'floor-activity', floor.archive ? 'Catálogo' : sourceLabel(floor.source));
-  label.append(title, description, activity);
+  label.append(title, description);
+  if (floor.delivery?.summary) label.append(element('span', 'floor-delivery', floor.delivery.summary));
+  if (!floor.archive && floor.available !== false && latest.status !== 'unavailable' &&
+      latest.status !== 'starting' && (local || typeof window.fetchOnlineActivity === 'function')) {
+    const activity = element('span', 'floor-breakdown');
+    const labels = { 'em-andamento': 'em andamento', bloqueado: 'com bloqueio', concluido: 'com conclus�o' };
+    for (const [status, text] of Object.entries(labels)) {
+      const count = floor.agents.filter(agent => agent.status === status).length;
+      if (count) activity.append(element('span', 'floor-count-' + status, count + ' ' + text));
+    }
+    if (activity.childElementCount) label.append(activity);
+  }
   button.append(element('span', 'floor-number', floor.archive ? 'H' : String(index + 1)), label);
   button.addEventListener('click', () => {
     floorKey = floor.id;
@@ -395,8 +405,8 @@ function seatMarker(agent, moving) {
   const button = element('button', 'seat-button ' + status + ' has-avatar');
   button.classList.toggle('agent-lead', agent.lead === true);
   button.dataset.agent = agent.id;
-  button.setAttribute('aria-label', `${agent.name} · ${roleName(agent)} · ${statusLabels[status]}`);
-  button.title = `${agent.name} · ${statusLabels[status]}`;
+  button.setAttribute('aria-label', `${agent.name} � ${roleName(agent)} � ${statusLabels[status]}`);
+  button.title = `${agent.name} � ${statusLabels[status]}`;
   button.addEventListener('click', () => selectAgent(agent));
   const initials = String(agent.name || '?').trim().split(/\s+/u).slice(0, 2).map(part => part[0]).join('').toLocaleUpperCase('pt-BR');
   const avatar = element('span', 'agent-avatar', initials);
@@ -431,7 +441,7 @@ function renderMapMarkers(floor, agents, selected) {
   const motionButton = board['map-motion'];
   motionButton.disabled = !animationSupported || reducedMotion.matches || !hasRoute;
   setPressed(motionButton, allowMotion);
-  motionButton.title = reducedMotion.matches ? 'Movimento reduzido pelo sistema' : 'Animação ilustrativa dos agentes';
+  motionButton.title = reducedMotion.matches ? 'Movimento reduzido pelo sistema' : 'Anima��o ilustrativa dos agentes';
 
   for (const agent of agents) {
     const status = safeStatus(agent.status);
@@ -463,9 +473,9 @@ function agentRow(agent, selected) {
   row.dataset.agent = agent.id;
   setPressed(row, selected);
   const main = element('span', 'agent-row-main');
-  main.append(element('strong', '', agent.name), element('span', '', `${roleName(agent)} · ${teamName(agentTeam(agent))}`));
+  main.append(element('strong', '', agent.name), element('span', '', `${roleName(agent)} � ${teamName(agentTeam(agent))}`));
   const activity = element('span', 'agent-row-activity');
-  activity.append(element('strong', '', agentActivity(agent)), element('span', '', 'Última atividade registrada'));
+  activity.append(element('strong', '', agentActivity(agent)), element('span', '', '�ltima atividade registrada'));
   const meta = element('span', 'agent-row-meta');
   meta.append(element('span', 'status ' + status, statusLabels[status]), sourceTag(agent.source));
   const time = dateTime(agent.updatedAt);
@@ -482,8 +492,8 @@ function updateSignalDisplays() {
   board['top-signal'].title = validDate(latest.receivedAt) ? new Date(latest.receivedAt).toISOString() : '';
   board['summary-signal'].title = board['top-signal'].title;
   board['summary-signal-note'].textContent = validDate(latest.receivedAt)
-    ? 'Sincronização do monitor'
-    : local || typeof window.fetchOnlineActivity === 'function' ? 'Horário não informado' : 'Não publicado na visão pública';
+    ? 'Sincroniza��o do monitor'
+    : local || typeof window.fetchOnlineActivity === 'function' ? 'Hor�rio n�o informado' : 'N�o publicado na vis�o p�blica';
 }
 
 function renderConnection() {
@@ -491,26 +501,26 @@ function renderConnection() {
   let label = 'Iniciando monitor';
   let state = 'is-waiting';
   if (publicView) {
-    label = 'Visualização pública';
+    label = 'Visualiza��o p�blica';
     state = 'is-public';
   } else if (latest.status === 'starting') {
     label = 'Aguardando monitor';
     state = 'is-waiting';
   } else if (latest.status === 'unavailable') {
     const age = validDate(latest.receivedAt) ? Date.now() - Date.parse(latest.receivedAt) : Infinity;
-    label = age > staleAfterMs ? 'Snapshot desatualizado' : 'Falha temporária';
+    label = age > staleAfterMs ? 'Snapshot desatualizado' : 'Falha tempor�ria';
     state = age > staleAfterMs ? 'is-warning' : 'is-error';
   } else if (latest.status === 'connected') {
     const hasSessions = latest.projects.some(project => Array.isArray(project.agents) && project.agents.length > 0);
-    label = hasSessions ? 'Monitor conectado' : 'Aguardando sessões';
+    label = hasSessions ? 'Monitor conectado' : 'Aguardando sess�es';
     state = hasSessions ? 'is-live' : 'is-waiting';
   }
   board.connection.textContent = label;
   board.connection.className = 'connection ' + state;
   board.connection.title = label;
   board['scope-note'].textContent = publicView
-    ? 'Visão pública: andares e catálogo publicados; sessões e conversas ficam no painel privado.'
-    : 'Sessões resumidas pelo monitor; horários de atividade e de sincronização são distintos.';
+    ? 'Vis�o p�blica: andares e cat�logo publicados; sess�es e conversas ficam no painel privado.'
+    : 'Sess�es resumidas pelo monitor; hor�rios de atividade e de sincroniza��o s�o distintos.';
   board['bridge-note'].hidden = !publicView;
   updateSignalDisplays();
 }
@@ -521,57 +531,58 @@ function renderSummary(floor) {
   const blocked = agents.filter(agent => safeStatus(agent.status) === 'bloqueado').length;
   const publicView = !local && typeof window.fetchOnlineActivity !== 'function';
   const liveMetrics = !floor.archive && !publicView;
-  board['summary-observed'].textContent = floor.archive || liveMetrics ? String(agents.length) : 'Não informado';
-  board['summary-active'].textContent = liveMetrics ? String(active) : 'Não informado';
-  board['summary-blocked'].textContent = liveMetrics ? String(blocked) : 'Não informado';
+  board['summary-observed'].textContent = floor.archive || liveMetrics ? String(agents.length) : 'N�o informado';
+  board['summary-active'].textContent = liveMetrics ? String(active) : 'N�o informado';
+  board['summary-blocked'].textContent = liveMetrics ? String(blocked) : 'N�o informado';
   board['summary-observed-note'].textContent = floor.archive
-    ? 'Catálogo histórico'
-    : publicView ? 'Sessões não publicadas' : `${sourceLabel(floor.source)} · escopo do andar`;
+    ? 'Cat�logo hist�rico'
+    : publicView ? 'Sess�es n�o publicadas' : `${sourceLabel(floor.source)} � escopo do andar`;
   board['summary-scope'].textContent = floor.archive
-    ? 'Catálogo histórico: os registros abaixo não ocupam as nove cadeiras do escritório ao vivo.'
+    ? 'Cat�logo hist�rico: os registros abaixo n�o ocupam as nove cadeiras do escrit�rio ao vivo.'
     : publicView
-      ? 'Visualização pública: os andares são publicados, mas sessões, atividade e horários ficam no painel privado.'
+      ? 'Visualiza��o p�blica: os andares s�o publicados, mas sess�es, atividade e hor�rios ficam no painel privado.'
     : floor.available === false
-      ? 'Pasta configurada, mas indisponível neste computador; não há inferência de atividade.'
-      : 'Sessões observadas pelo monitor. Em andamento e bloqueadas são estados registrados, não métricas de progresso.';
-  if (floor.archive) board['project-state'].textContent = 'Catálogo histórico';
-  else if (publicView) board['project-state'].textContent = 'Visualização pública';
-  else if (floor.available === false) board['project-state'].textContent = 'Pasta indisponível';
-  else if (latest.status === 'unavailable') board['project-state'].textContent = validDate(latest.receivedAt) ? 'Snapshot desatualizado' : 'Falha temporária';
+      ? 'Pasta configurada, mas indispon�vel neste computador; n�o h� infer�ncia de atividade.'
+      : 'Sess�es observadas pelo monitor. Em andamento e bloqueadas s�o estados registrados, n�o m�tricas de progresso.';
+  if (floor.archive) board['project-state'].textContent = 'Cat�logo hist�rico';
+  else if (publicView) board['project-state'].textContent = 'Visualiza��o p�blica';
+  else if (floor.available === false) board['project-state'].textContent = 'Pasta indispon�vel';
+  else if (latest.status === 'unavailable') board['project-state'].textContent = validDate(latest.receivedAt) ? 'Snapshot desatualizado' : 'Falha tempor�ria';
   else board['project-state'].textContent = sourceLabel(floor.source);
   board['map-capacity'].textContent = floor.archive
-    ? 'O catálogo histórico não ocupa cadeiras.'
+    ? 'O cat�logo hist�rico n�o ocupa cadeiras.'
     : publicView
-      ? 'Sessões não publicadas na visão pública.'
-      : `${Math.min(agents.length, 9)} de 9 posições com personagens observados.`;
+      ? 'Sess�es n�o publicadas na vis�o p�blica.'
+      : `${Math.min(agents.length, 9)} de 9 posi��es com personagens observados.`;
   const overflow = Math.max(0, agents.length - 9);
   board['map-overflow'].hidden = overflow === 0;
   board['map-overflow'].textContent = overflow
-    ? `${overflow} ${overflow === 1 ? 'sessão adicional' : 'sessões adicionais'} na lista.`
+    ? `${overflow} ${overflow === 1 ? 'sess�o adicional' : 'sess�es adicionais'} na lista.`
     : '';
   updateSignalDisplays();
 }
 
 function renderAgentFocus(agent, floor) {
+  window.selectRemoteSession?.(latest.status === 'connected' && !floor.archive ? agent : null);
   board['agent-focus'].replaceChildren();
   if (!agent) {
     board['agent-focus'].append(element('p', 'empty-state', filters.team || filters.status || filters.search
-      ? 'Nenhuma sessão selecionada corresponde aos filtros.'
-      : 'Nenhuma sessão observada neste andar.'));
-    board['inspector-source'].textContent = 'Não informado';
+      ? 'Nenhuma sess�o selecionada corresponde aos filtros.'
+      : 'Nenhuma sess�o observada neste andar.'));
+    board['inspector-source'].textContent = 'N�o informado';
     board['inspector-source'].className = 'source-badge';
-    board['inspector-note'].textContent = 'Selecione uma sessão observada para ver os detalhes.';
+    board['inspector-note'].textContent = 'Selecione uma sess�o observada para ver os detalhes.';
     return;
   }
   const status = safeStatus(agent.status);
   const heading = element('div', 'agent-heading');
   heading.append(element('h3', '', agent.name), element('span', 'status ' + status, statusLabels[status]));
   board['agent-focus'].append(heading);
-  board['agent-focus'].append(element('p', 'agent-role', `${roleName(agent)} · ${teamName(agentTeam(agent))}`));
+  board['agent-focus'].append(element('p', 'agent-role', `${roleName(agent)} � ${teamName(agentTeam(agent))}`));
   board['agent-focus'].append(element('p', 'agent-task', agentActivity(agent)));
   if (agent.task && agent.task !== agent.activity) board['agent-focus'].append(element('p', 'agent-role', `Tarefa: ${agent.task}`));
   const updated = element('p', 'agent-role');
-  updated.append('Última atividade registrada · ', dateTime(agent.updatedAt));
+  updated.append('�ltima atividade registrada � ', dateTime(agent.updatedAt));
   board['agent-focus'].append(updated);
   const origin = element('div', 'agent-origin');
   origin.append(sourceTag(agent.source));
@@ -579,8 +590,8 @@ function renderAgentFocus(agent, floor) {
   board['inspector-source'].textContent = sourceLabel(agent.source);
   board['inspector-source'].className = 'source-badge ' + sourceClass(agent.source);
   board['inspector-note'].textContent = floor.archive
-    ? 'Registro histórico do catálogo; não representa uma sessão ao vivo.'
-    : 'Atividade e respostas pertencem somente à sessão selecionada.';
+    ? 'Registro hist�rico do cat�logo; n�o representa uma sess�o ao vivo.'
+    : 'Atividade e respostas pertencem somente � sess�o selecionada.';
 }
 
 function feedItem(at, text) {
@@ -593,10 +604,10 @@ function renderSessionActivity(agent) {
   const events = Array.isArray(agent?.events)
     ? agent.events.filter(event => event && typeof event.activity === 'string').sort((a, b) => Date.parse(b.at) - Date.parse(a.at))
     : [];
-  board['activity-scope'].textContent = agent ? `${events.length} registro${events.length === 1 ? '' : 's'} da sessão` : 'Sessão não selecionada';
+  board['activity-scope'].textContent = agent ? `${events.length} registro${events.length === 1 ? '' : 's'} da sess�o` : 'Sess�o n�o selecionada';
   board['live-feed'].replaceChildren(...(events.length
     ? events.slice(0, 12).map(event => feedItem(event.at, event.activity))
-    : [element('li', 'empty-state', agent ? 'Nenhuma atividade registrada nesta sessão.' : 'Selecione uma sessão observada.')]));
+    : [element('li', 'empty-state', agent ? 'Nenhuma atividade registrada nesta sess�o.' : 'Selecione uma sess�o observada.')]));
 }
 
 function renderProjectActivity(floor) {
@@ -605,8 +616,8 @@ function renderProjectActivity(floor) {
   if (floor.lastChangeAt) {
     const changeCount = Number.isInteger(floor.changes) ? floor.changes : null;
     events.push({ at: floor.lastChangeAt, activity: changeCount === null
-      ? 'Mudança de arquivo registrada no Git.'
-      : `${changeCount} arquivo${changeCount === 1 ? '' : 's'} com alterações no Git.` });
+      ? 'Mudan�a de arquivo registrada no Git.'
+      : `${changeCount} arquivo${changeCount === 1 ? '' : 's'} com altera��es no Git.` });
   }
   if (floor.branch) events.push({ at: floor.updatedAt, activity: `Branch do projeto: ${floor.branch}.` });
   if (floor.source === 'cloud') events.push({ at: floor.updatedAt, activity: 'Atividade agrupada do Codex Cloud.' });
@@ -633,14 +644,14 @@ function renderChat(agent, floor) {
   const unread = changed && previous && !followMessages ? (previous.unread || 0) + Math.max(1, messages.length - previous.count) : previous?.unread || 0;
   feed.replaceChildren(...messages.map(message => {
     const entry = element('li', 'chat-entry');
-    entry.append(dateTime(message.at, 'Horário não informado'), element('p', 'chat-text', message.text));
+    entry.append(dateTime(message.at, 'Hor�rio n�o informado'), element('p', 'chat-text', message.text));
     return entry;
   }));
   board['chat-empty'].hidden = messages.length > 0;
   if (messages.length === 0) {
     board['chat-empty'].textContent = floor.archive
-      ? 'O catálogo histórico contém atividade resumida, não respostas de uma sessão.'
-      : agent ? 'Nenhuma resposta registrada nesta sessão.' : 'Selecione uma sessão observada para consultar suas respostas.';
+      ? 'O cat�logo hist�rico cont�m atividade resumida, n�o respostas de uma sess�o.'
+      : agent ? 'Nenhuma resposta registrada nesta sess�o.' : 'Selecione uma sess�o observada para consultar suas respostas.';
   }
   if (followMessages && changed) feed.scrollTop = feed.scrollHeight;
   else feed.scrollTop = Math.min(scrollTop, feed.scrollHeight);
@@ -659,13 +670,13 @@ function renderActivity(agent, floor) {
 function renderList(agents, selectedAgent) {
   const scrollTop = board['agent-list-scroll'].scrollTop;
   const rows = sortedAgents(agents);
-  board['list-meta'].textContent = `${rows.length} resultado${rows.length === 1 ? '' : 's'} de ${floorAgentCount()} sessões observadas`;
+  board['list-meta'].textContent = `${rows.length} resultado${rows.length === 1 ? '' : 's'} de ${floorAgentCount()} sess�es observadas`;
   const sourceCounts = new Map();
   rows.forEach(agent => sourceCounts.set(agent.source, (sourceCounts.get(agent.source) || 0) + 1));
-  board['list-source-note'].textContent = [...sourceCounts.entries()].map(([source, count]) => `${count} · ${sourceLabel(source)}`).join('  ');
+  board['list-source-note'].textContent = [...sourceCounts.entries()].map(([source, count]) => `${count} � ${sourceLabel(source)}`).join('  ');
   board['agent-list'].replaceChildren(...(rows.length
     ? rows.map(agent => agentRow(agent, agent.id === selectedAgent?.id))
-    : [element('div', 'empty-state', 'Nenhuma sessão corresponde aos filtros atuais.')]));
+    : [element('div', 'empty-state', 'Nenhuma sess�o corresponde aos filtros atuais.')]));
   board['agent-list-scroll'].scrollTop = scrollTop;
 }
 
@@ -707,8 +718,16 @@ function renderOffice() {
   const metadata = [];
   if (floor.branch) metadata.push(`branch ${floor.branch}`);
   if (floor.isRepository && Number.isInteger(floor.changes)) metadata.push(`${floor.changes} arquivo${floor.changes === 1 ? '' : 's'} alterado${floor.changes === 1 ? '' : 's'}`);
-  metadata.push(floor.archive ? 'Catálogo histórico' : `${floor.agents.length} sessão${floor.agents.length === 1 ? '' : 'ões'} observada${floor.agents.length === 1 ? '' : 's'}`);
-  board['map-meta'].textContent = metadata.join(' · ');
+  metadata.push(floor.archive ? 'Cat�logo hist�rico' : `${floor.agents.length} sess�o${floor.agents.length === 1 ? '' : '�es'} observada${floor.agents.length === 1 ? '' : 's'}`);
+  board['map-meta'].textContent = metadata.join(' � ');
+  if (floor.delivery?.summary) {
+    const delivery = element('span', 'floor-delivery-detail', floor.delivery.summary);
+    const date = element('time', '', floor.delivery.date.split('-').reverse().join('/'));
+    date.dateTime = floor.delivery.date;
+    delivery.append(' ', date);
+    if (floor.delivery.reference) delivery.append(' � ', element('code', '', floor.delivery.reference));
+    board['map-meta'].append(delivery);
+  }
   const repositoryUrl = floor.remoteUrl || '';
   const repositoryLink = board['project-repository'];
   repositoryLink.hidden = !/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/i.test(repositoryUrl);
@@ -810,7 +829,7 @@ function showPage() {
 
 async function readText(path) {
   const response = await fetch(path, { cache: 'no-store', signal: AbortSignal.timeout(4000) });
-  if (!response.ok) throw new Error('Leitura indisponível');
+  if (!response.ok) throw new Error('Leitura indispon�vel');
   return response.text();
 }
 
@@ -878,7 +897,7 @@ async function refreshOffice() {
       changed = true;
     }
   } catch {
-    if (!catalog) board.connection.textContent = 'Catálogo indisponível';
+    if (!catalog) board.connection.textContent = 'Cat�logo indispon�vel';
   }
   if (!projectManifest) {
     try {
@@ -924,7 +943,7 @@ function renderRules() {
       const item = element('li');
       item.append(element('h3', '', rule.title), element('p', '', rule.text));
       const sources = Array.isArray(rule.sources) ? rule.sources : [];
-      if (sources.length) item.append(element('p', 'sources', 'Fontes: ' + sources.join(' · ')));
+      if (sources.length) item.append(element('p', 'sources', 'Fontes: ' + sources.join(' � ')));
       return item;
     }));
     details.append(element('summary', '', group.title), list);
@@ -994,3 +1013,4 @@ renderRules();
 applyView();
 renderView();
 refreshOffice();
+
