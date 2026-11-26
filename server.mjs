@@ -38,14 +38,20 @@ const server = createServer(async (request, response) => {
     return;
   }
   const pathname = request.url.split('?')[0];
-  if (pathname === '/api/activity') {
+  if (pathname === '/api/activity' || pathname === '/api/local-tasks') {
     if (request.headers['sec-fetch-site'] === 'cross-site'
         || (request.headers.origin && request.headers.origin !== 'http://' + request.headers.host)) {
       response.writeHead(403, headers).end();
       return;
     }
-    response.writeHead(200, { ...headers, 'Content-Type': 'application/json; charset=utf-8' });
-    response.end(request.method === 'HEAD' ? undefined : JSON.stringify(activity.getSnapshot()));
+    try {
+      const data = pathname === '/api/activity' ? activity.getSnapshot()
+        : { jobs: (await import('./monitor/coordinator.mjs')).recentJobs() };
+      response.writeHead(200, { ...headers, 'Content-Type': 'application/json; charset=utf-8' });
+      response.end(request.method === 'HEAD' ? undefined : JSON.stringify(data));
+    } catch {
+      response.writeHead(503, headers).end();
+    }
     return;
   }
   const path = pathname === '/' ? '/index.html' : pathname;
