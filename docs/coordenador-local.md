@@ -1,6 +1,8 @@
 # Coordenador local
 
-Use Node.js 24, Git e o executável local do Codex autenticado. O coordenador roda sob a sua conta no Windows. Ele recebe instruções pelo terminal local. A página pública, o painel privado e o APK não enviam tarefas a esta fila.
+Use Node.js 24, Git e o executável local do Codex autenticado. O coordenador roda sob a sua conta no Windows. As tarefas do terminal criam worktrees. As consultas do painel privado usam as mesmas duas vagas e retomam em modo de leitura a sessão local concluída que o proprietário autorizou. O APK abre esse mesmo painel. A página pública não tem formulário de envio.
+
+O monitor busca entregas no relay quando o pareamento local e as duas chaves do Worker estão configurados. Cada recibo identifica uma entrega. A interface exibe a fase registrada e sinaliza desatualização após 45 segundos sem contato do executor. O monitor transmite a fase a cada dez segundos enquanto aguarda vaga ou executa a consulta. Mensagens, saída de ferramentas e identificadores locais de sessão ficam fora das atualizações de fase. Para habilitar isso na hospedagem de teste, aplique as migrações da fila, incluindo `0002_instruction_progress.sql`.
 
 Crie um arquivo JSON local com os dois executores. Informe o caminho absoluto existente em cada entrada. O campo opcional `model` aceita um modelo disponível na sua conta.
 

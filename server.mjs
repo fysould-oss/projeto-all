@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createActivityMonitor } from './monitor/activity.mjs';
 import { startOnlineRelay } from './monitor/relay.mjs';
 import { readRelayCredential } from './monitor/credential.mjs';
+import { startRemoteMonitor } from './monitor/remote.mjs';
 
 const assets = new Map([
   ['/index.html', 'text/html; charset=utf-8'],
@@ -19,7 +20,9 @@ const assets = new Map([
 ]);
 const port = Number(process.env.PAINEL_PORT || 4173);
 const activity = createActivityMonitor();
-const closeRelay = startOnlineRelay(activity.getSnapshot, await readRelayCredential());
+const credential = await readRelayCredential();
+const closeRelay = startOnlineRelay(activity.getSnapshot, credential);
+const closeRemoteMonitor = startRemoteMonitor(credential);
 const headers = {
   'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
@@ -72,6 +75,7 @@ const server = createServer(async (request, response) => {
   console.log('Painel disponível em http://127.0.0.1:' + port);
 });
 server.on('close', () => {
+  closeRemoteMonitor();
   closeRelay();
   activity.close();
 });

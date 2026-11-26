@@ -48,6 +48,16 @@ O catálogo fica em dist/rules.js e descreve o comportamento observado no commit
 
 ## Aplicativo Android
 
+### Piloto de instruções para o PC de casa
+
+O piloto retoma uma sessão local concluída para responder em modo de leitura. A chave do proprietário fica na memória da página durante o envio. A página pública continua oferecendo o link para o painel privado. O APK abre o mesmo endereço privado do navegador.
+
+Para validar em um ambiente de teste privado, aplique a migração `0001_instructions` ao D1 e execute `node scripts/build-worker.mjs` no checkout revisado para empacotar os arquivos do painel. Configure dois segredos distintos de ao menos 32 caracteres no Worker, `OFFICE_OWNER_TOKEN` e `OFFICE_DEVICE_TOKEN`.
+
+No Windows pareado, configure `PROJETO_ALL_DEVICE_TOKEN` com a chave do dispositivo, `PROJETO_ALL_CODEX_BIN` com o caminho absoluto do executável local e `PROJETO_ALL_REMOTE_SESSIONS` com os UUIDs autorizados, separados por vírgula. O monitor também usa a credencial de sincronização do Site. Reinicie o monitor após alterar essa configuração.
+
+O teste de aceitação requer um Windows separado e o APK. Em cada cliente, entre no painel privado, escolha a sessão de teste concluída, envie uma pergunta curta e confira o recibo até a conclusão. Compare a resposta no PC com a instrução enviada. Verifique também a tentativa com a sessão removida da lista autorizada. A publicação do piloto depende dessa validação.
+
 O aplicativo Android abre o escritório privado ao vivo, preserva o login no celular e usa a mesma sincronização do painel web.
 
 1. Baixe o [APK direto para Android](https://raw.githubusercontent.com/fysould-oss/projeto-all/main/downloads/projeto-all-v1.1.0.apk).

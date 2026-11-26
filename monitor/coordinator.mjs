@@ -6,6 +6,7 @@ import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
 import { DatabaseSync } from 'node:sqlite';
 import { promisify } from 'node:util';
+import { setTimeout as sleep } from 'node:timers/promises';
 
 const exec = promisify(execFile);
 const slots = ['a', 'b'];
@@ -112,14 +113,44 @@ export async function runSlot(db, slot, { binary, model, dir = home(), start = s
   return { id: job.id, status, result, files };
 }
 
+export async function coordinateResume(db, id, cwd, signal, run) {
+  const now = () => new Date().toISOString();
+  // A remote delivery never becomes an editable local job. Keep its text only in memory.
+  db.prepare("INSERT INTO jobs(id,repo,project,base,prompt,status,owner,submitted,updated) VALUES(?,?,?,'','','waiting_remote',?,?,?)")
+    .run(id, cwd, basename(cwd), process.pid, now(), now());
+  try {
+    const take = db.prepare(`UPDATE jobs SET status='running',slot=?,updated=?
+      WHERE id=? AND status='waiting_remote' AND NOT EXISTS
+      (SELECT 1 FROM jobs WHERE slot=? AND status='running') RETURNING slot`);
+    let slot;
+    while (!slot) {
+      signal.throwIfAborted();
+      slot = slots.find(s => take.get(s, now(), id, s));
+      if (!slot) await sleep(1000, undefined, { signal });
+    }
+    let emitted = 0;
+    const record = (kind, pid) => {
+      if (Number.isSafeInteger(pid)) db.prepare('UPDATE jobs SET child=? WHERE id=?').run(pid, id);
+      if (emitted++ < 1000 && ['running','turn.started','item.started','item.completed','turn.completed'].includes(kind)) {
+        db.prepare('INSERT INTO events(job,kind,at) VALUES(?,?,?)').run(id, kind, now());
+      }
+    };
+    await run(record);
+    db.prepare("UPDATE jobs SET status='done',result='turn_completed',child=NULL,updated=? WHERE id=?").run(now(), id);
+  } catch (error) {
+    db.prepare("UPDATE jobs SET status='failed',result='turn_failed',child=NULL,updated=? WHERE id=?").run(now(), id);
+    throw error;
+  }
+}
+
 export function recover(db, id) {
-  const job = db.prepare("SELECT owner,child FROM jobs WHERE id=? AND status='running'").get(id);
+  const job = db.prepare("SELECT owner,child FROM jobs WHERE id=? AND status IN ('running','waiting_remote')").get(id);
   if (!job) throw new Error('Tarefa em execução não encontrada.');
   for (const pid of [job.owner, job.child].filter(Boolean)) {
     try { process.kill(pid, 0); }
     catch (error) { if (error.code === 'ESRCH') continue; throw error; }
     throw new Error('O processo ainda existe. Aguarde o encerramento.');
   }
-  db.prepare("UPDATE jobs SET status='failed',result='interrupted',prompt='',updated=? WHERE id=? AND status='running'")
+  db.prepare("UPDATE jobs SET status='failed',result='interrupted',prompt='',updated=? WHERE id=? AND status IN ('running','waiting_remote')")
     .run(new Date().toISOString(), id);
 }

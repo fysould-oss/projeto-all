@@ -4,7 +4,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { enqueue, openQueue, recentJobs, recover, runSlot } from './coordinator.mjs';
+import { coordinateResume, enqueue, openQueue, recentJobs, recover, runSlot } from './coordinator.mjs';
 
 test('dois executores isolam arquivos, limitam concorrência e guardam somente metadados', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'office-coordinator-'));
@@ -33,12 +33,18 @@ test('dois executores isolam arquivos, limitam concorrência e guardam somente m
       `], options);
     }};
     const a = runSlot(db, 'a', opts), b = runSlot(db, 'b', opts);
+    const remote = coordinateResume(db, 'remote-test', repo, new AbortController().signal, async record => {
+      record('turn.started'); record('turn.completed');
+    });
+    assert.equal(db.prepare("SELECT status FROM jobs WHERE id='remote-test'").get().status, 'waiting_remote');
     assert.equal(await runSlot(db, 'a', opts), null);
     const results = await Promise.all([a,b]);
     assert.deepEqual(results.map(r => r.status), ['done','done']);
     assert.deepEqual(results.map(r => r.files), [1,1]);
     assert.equal(await readFile(join(repo,'base.txt'),'utf8'),'modificação local');
-    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM events WHERE kind='turn.completed'").get().n, 2);
+    await remote;
+    assert.equal(db.prepare("SELECT status FROM jobs WHERE id='remote-test'").get().status,'done');
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM events WHERE kind='turn.completed'").get().n, 3);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM jobs WHERE prompt<>''").get().n, 1);
     assert.doesNotMatch(JSON.stringify(recentJobs(dir)), /consulta|CONTEUDO_SENSIVEL|base\.txt/);
     const failed = await runSlot(db,'a',{...opts,start(exe,_args,o){return spawn(exe,['-e','process.stdin.resume()'],o);}});
