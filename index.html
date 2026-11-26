@@ -6,10 +6,10 @@
   <meta name="description" content="Acompanhe o trabalho do Codex em um escritório isométrico com um andar por projeto.">
   <meta name="theme-color" content="#0c1220">
   <title>PROJETO ALL · Escritório do Codex</title>
-  <link rel="stylesheet" href="./style.css?v=operations-1">
+  <link rel="stylesheet" href="./style.css?v=office-floor-2">
   <script src="./rules.js?v=lobby-3" defer></script>
   <script src="./online.js?v=lobby-3" defer></script>
-  <script src="./app.js?v=operations-1" defer></script>
+  <script src="./app.js?v=office-floor-2" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -47,7 +47,6 @@
     <section id="agentes" aria-labelledby="team-title">
       <div class="page-intro">
         <div>
-          <p class="eyebrow">Sala de operações</p>
           <h1 id="team-title">Escritório do Codex</h1>
         </div>
         <div class="intro-actions">
@@ -74,14 +73,43 @@
         <section class="office-panel" aria-labelledby="map-current">
           <header class="office-header">
             <div class="office-title">
-              <p class="eyebrow">Projeto selecionado</p>
               <h2 id="map-current">Não informado</h2>
               <p id="map-meta" class="office-meta">Carregando dados do andar…</p>
               <div class="project-links">
                 <a id="project-repository" class="repo-link" target="_blank" rel="noopener noreferrer" hidden>Ver repositório no GitHub <svg class="icon" aria-hidden="true"><use href="#icon-arrow"></use></svg></a>
-                <span id="project-state" class="project-state">Não informado</span>
               </div>
             </div>
+          </header>
+
+          <div class="scene-stage">
+            <div id="office-view" class="office-view">
+              <div id="map-scroll" class="map-scroll" tabindex="0" aria-label="Mapa do escritório. Use os controles de escala ou deslize para explorar o andar.">
+                <div class="map" id="office-map">
+                  <picture>
+                    <source media="(max-width: 640px)" srcset="./office-mobile.webp?v=office-floor-2">
+                    <img class="office-art" src="./office-floor.webp?v=office-floor-2" alt="Escritório em pixel art com salas, corredores e estações de trabalho.">
+                  </picture>
+                  <div id="map-agents"></div>
+                </div>
+              </div>
+              <div class="map-footer"><span id="map-capacity">A sala tem nove posições.</span><span id="map-overflow" hidden></span></div>
+            </div>
+            <aside id="scene-log" class="scene-log" aria-label="Última atividade da sessão selecionada" hidden>
+              <div class="scene-log-heading"><span id="scene-agent"></span><button id="scene-open-chat" type="button" aria-label="Abrir conversas da sessão"><svg class="icon" aria-hidden="true"><use href="#icon-chat"></use></svg></button></div>
+              <p id="scene-activity"></p>
+            </aside>
+            <section class="floor-summary" aria-labelledby="summary-title">
+              <h3 id="summary-title">Painel de controle</h3>
+              <div class="summary-card summary-live"><span class="summary-label">Sessões observadas</span><strong id="summary-observed">Não informado</strong><span id="summary-observed-note" class="summary-note sr-only">Escopo do monitor</span></div>
+              <div class="summary-card summary-live"><span class="summary-label">Em andamento</span><strong id="summary-active">Não informado</strong></div>
+              <div class="summary-card summary-live"><span class="summary-label">Bloqueadas</span><strong id="summary-blocked">Não informado</strong></div>
+              <div class="summary-card"><span class="summary-label">Andares</span><strong id="summary-floors">0</strong></div>
+              <div class="summary-card"><span class="summary-label">Estado</span><strong id="project-state">Não informado</strong></div>
+              <div class="summary-card summary-card-signal summary-live"><span class="summary-label">Último sinal</span><strong id="summary-signal">Não informado</strong><span id="summary-signal-note" class="summary-note sr-only">Sincronização</span></div>
+            </section>
+          </div>
+
+          <div class="console-toolbar">
             <div class="office-controls" aria-label="Controles da sala">
               <div class="view-switch" role="group" aria-label="Visualização">
                 <button id="view-office" class="view-button" type="button" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#icon-office"></use></svg>Sala</button>
@@ -94,16 +122,6 @@
                 <button id="map-zoom-in" class="icon-button" type="button" aria-label="Ampliar sala" title="Ampliar"><svg class="icon" aria-hidden="true"><use href="#icon-plus"></use></svg></button>
               </div>
             </div>
-          </header>
-
-          <div id="office-view" class="office-view">
-            <div id="map-scroll" class="map-scroll" tabindex="0" aria-label="Mapa do escritório. Use os controles de escala ou deslize para explorar o andar.">
-              <div class="map" id="office-map">
-                <img class="office-art" src="./office-lobby.png" width="1672" height="941" alt="Sala isométrica em pixel art com nove estações de trabalho e uma área de descanso.">
-                <div id="map-agents"></div>
-              </div>
-            </div>
-            <div class="map-footer"><span id="map-capacity">A sala tem nove posições.</span><span id="map-overflow" hidden></span></div>
             <div id="team-legend" class="team-legend" aria-label="Cores das equipes"></div>
           </div>
 
@@ -120,17 +138,11 @@
               <div id="agent-list" class="agent-list"></div>
             </div>
           </section>
-          <div class="floor-summary" aria-label="Resumo do andar">
-            <div class="summary-card"><span class="summary-label">Sessões observadas</span><strong id="summary-observed">Não informado</strong><span id="summary-observed-note" class="summary-note">Escopo do monitor</span></div>
-            <div class="summary-card"><span class="summary-label">Em andamento</span><strong id="summary-active">Não informado</strong><span class="summary-note">Status atual</span></div>
-            <div class="summary-card"><span class="summary-label">Bloqueadas</span><strong id="summary-blocked">Não informado</strong><span class="summary-note">Sem inferências</span></div>
-            <div class="summary-card summary-card-signal"><span class="summary-label">Último sinal recebido</span><strong id="summary-signal">Não informado</strong><span id="summary-signal-note" class="summary-note">Sincronização</span></div>
-          </div>
           <p id="summary-scope" class="summary-scope">Métricas calculadas a partir dos dados disponíveis.</p>
 
         </section>
 
-        <aside class="inspector-panel" aria-labelledby="inspector-title">
+        <aside id="session-inspector" class="inspector-panel" aria-labelledby="inspector-title">
           <header class="inspector-header">
             <div><h2 id="inspector-title">Inspetor da sessão</h2></div>
             <span id="inspector-source" class="source-badge">Não informado</span>

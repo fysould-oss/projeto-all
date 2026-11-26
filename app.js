@@ -27,14 +27,10 @@ const roleLabels = {
 const dateFormat = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 const local = ['127.0.0.1', 'localhost'].includes(location.hostname);
 const staleAfterMs = 75 * 1000;
-const roleDesks = {
-  coordenacao: [818, 150],
-  contas: [430, 345],
-  comunidade: [1237, 345],
-  integracoes: [683, 402],
-  qualidade: [1091, 401],
-};
-const flexibleDesks = [[280, 487], [1394, 489], [621, 561], [1158, 565]];
+const roleSlots = ['coordenacao', 'contas', 'comunidade', 'integracoes', 'qualidade'];
+const desktopDesks = [[15.7, 51.2], [42.2, 34.2], [70.5, 54.7], [35.6, 56.8], [47, 56.8], [36.5, 78.5], [76, 70], [51.9, 34.2], [64, 86.6]];
+const mobileDesks = [[17, 36.3], [40.5, 44.7], [68.7, 44.7], [40.5, 65.9], [68.7, 65.9], [22.4, 91.2], [43, 91.2], [63.7, 91.2], [84.3, 91.2]];
+const mobileFloor = window.matchMedia('(max-width: 640px)');
 const board = Object.fromEntries([
   'connection', 'top-project', 'top-signal', 'scope-note', 'floor-count', 'floor-list', 'bridge-note',
   'map-current', 'map-meta', 'project-repository', 'project-state', 'team-filter', 'status-filter',
@@ -44,6 +40,7 @@ const board = Object.fromEntries([
   'list-source-note', 'agent-list', 'agent-list-scroll', 'agent-focus', 'inspector-source', 'activity-scope',
   'live-feed', 'project-feed', 'agent-chat', 'chat-empty', 'chat-follow', 'chat-new', 'inspector-note',
   'view-office', 'view-list', 'map-fit', 'map-zoom-out', 'map-zoom-in', 'map-zoom-label',
+  'summary-floors', 'scene-log', 'scene-agent', 'scene-activity', 'scene-open-chat', 'chat-tab',
 ].map(id => [id, document.getElementById(id)]));
 const rules = document.querySelector('#rules');
 const ruleSearch = document.querySelector('#rule-search');
@@ -215,44 +212,39 @@ function seatsFor(floor) {
   const agents = Array.isArray(floor.agents) ? floor.agents : [];
   const agentById = new Map(agents.map(agent => [agent.id, agent]));
   const orderedAgents = [...agents].sort((a, b) => String(a.id).localeCompare(String(b.id)));
-  const fixedEntries = Object.entries(roleDesks);
-  const allDesks = [...fixedEntries.map(([, point]) => point), ...flexibleDesks];
-  const roleSlots = new Map(fixedEntries.map(([roleId], slot) => [roleId, slot]));
+  const desks = mobileFloor.matches ? mobileDesks : desktopDesks;
   const roleAgents = new Map();
   for (const agent of orderedAgents) {
-    if (!Object.hasOwn(roleDesks, agent.roleId)) continue;
+    if (!roleSlots.includes(agent.roleId)) continue;
     const current = roleAgents.get(agent.roleId);
     const active = safeStatus(agent.status) === 'em-andamento';
     const currentActive = current && safeStatus(current.status) === 'em-andamento';
     if (!current || active && !currentActive) roleAgents.set(agent.roleId, agent);
   }
   const fixedIds = new Set([...roleAgents.values()].map(agent => agent.id));
-  const occupied = new Set([...roleAgents.keys()].flatMap(roleId => {
-    const slot = roleSlots.get(roleId);
-    return slot === undefined ? [] : [slot];
-  }));
+  const occupied = new Set([...roleAgents.keys()].map(roleId => roleSlots.indexOf(roleId)));
   for (const [id, slot] of [...assignments]) {
-    if (!agentById.has(id) || fixedIds.has(id) || !Number.isInteger(slot) || slot < 0 || slot >= allDesks.length || occupied.has(slot)) {
+    if (!agentById.has(id) || fixedIds.has(id) || !Number.isInteger(slot) || slot < 0 || slot >= desks.length || occupied.has(slot)) {
       assignments.delete(id);
       continue;
     }
     occupied.add(slot);
   }
-  const free = allDesks.map((_, index) => index).filter(index => !occupied.has(index));
+  const free = desks.map((_, index) => index).filter(index => !occupied.has(index));
   for (const agent of orderedAgents) {
     if (fixedIds.has(agent.id) || assignments.has(agent.id) || !free.length) continue;
     assignments.set(agent.id, free.shift());
     occupied.add(assignments.get(agent.id));
   }
-  const fixed = fixedEntries.flatMap(([roleId, point]) => {
+  const fixed = roleSlots.flatMap((roleId, slot) => {
     const agent = roleAgents.get(roleId);
-    return agent ? [{ ...agent, point, teamId: agentTeam(agent), avatarRole: roleId, lead: roleId === 'coordenacao' }] : [];
+    return agent ? [{ ...agent, point: desks[slot], teamId: agentTeam(agent), avatarRole: roleId, lead: roleId === 'coordenacao' }] : [];
   });
   const assigned = [...assignments].map(([id, slot]) => {
     const agent = agentById.get(id);
     return {
       ...agent,
-      point: allDesks[slot],
+      point: desks[slot],
       teamId: agentTeam(agent),
       avatarRole: 'flex',
       lead: false,
@@ -302,16 +294,16 @@ function selectAgent(agent, center = false) {
   if (center) window.requestAnimationFrame(centerSelectedSeat);
 }
 
-function seatMarker(agent, selected, preview) {
+function seatMarker(agent, selected) {
   const [x, y] = agent.point;
   const teamId = safeClass(agent.teamId);
   const status = safeStatus(agent.status);
   const seat = element('div', 'map-seat' + (teamId ? ' team-' + teamId : ''));
-  seat.style.left = (x * 100 / 1672) + '%';
-  seat.style.top = (y * 100 / 941) + '%';
-  if (x < 460) seat.classList.add('bubble-left');
-  else if (x > 1190) seat.classList.add('bubble-right');
-  if (y < 250) seat.classList.add('bubble-top');
+  seat.style.left = x + '%';
+  seat.style.top = y + '%';
+  if (x < 13) seat.classList.add('bubble-left');
+  else if (x > 87) seat.classList.add('bubble-right');
+  if (y < 15) seat.classList.add('bubble-top');
   const button = element('button', 'seat-button ' + status + ' has-avatar');
   button.classList.toggle('agent-lead', agent.lead === true);
   setPressed(button, selected);
@@ -325,14 +317,12 @@ function seatMarker(agent, selected, preview) {
   avatar.setAttribute('aria-hidden', 'true');
   button.append(avatar);
   seat.append(button);
-  if (selected || preview) {
-    const speech = element('div', selected ? 'speech' : 'speech speech-preview');
-    speech.append(element('strong', '', agent.name));
-    speech.append(element('span', 'speech-status ' + status, statusLabels[status]));
-    if (selected) speech.append(element('span', 'speech-activity', agentActivity(agent)));
-    seat.append(speech);
-    if (selected) seat.classList.add('selected');
-  }
+  const speech = element('div', 'speech');
+  speech.setAttribute('aria-hidden', 'true');
+  speech.append(element('strong', '', agent.name));
+  speech.append(element('span', 'speech-status ' + status, statusLabels[status]));
+  seat.append(speech);
+  seat.classList.toggle('selected', selected);
   return seat;
 }
 
@@ -573,6 +563,7 @@ function renderOffice() {
   const activeElement = document.activeElement;
   const activeFloor = activeElement?.dataset?.floor;
   const activeAgent = activeElement?.dataset?.agent;
+  const activeInScene = board['map-agents'].contains(activeElement);
   const availableFloors = floors();
   const preferredFloorKey = floorSelectionExplicit ? floorKey : (initialFloorKey || floorKey);
   const floor = availableFloors.find(project => project.id === preferredFloorKey)
@@ -584,6 +575,7 @@ function renderOffice() {
   currentFloorId = floor.id;
   window.setLiveOfficeFloor?.(floorKey);
   board['floor-count'].textContent = String(availableFloors.length);
+  board['summary-floors'].textContent = String(availableFloors.length);
   board['floor-list'].replaceChildren(...availableFloors.map((item, index) => floorButton(item, index, item.id === floor.id)));
   board['top-project'].textContent = floor.name;
   board['map-current'].textContent = floor.name;
@@ -606,20 +598,19 @@ function renderOffice() {
   if (selectedAgent) selections.set(floor.id, selectedAgent.id);
   const seats = seatsFor(floor);
   const filteredSeats = seats.filter(filterMatches);
-  const selectedPoint = filteredSeats.find(agent => agent.id === selectedAgent?.id)?.point;
-  board['map-agents'].replaceChildren(...filteredSeats.map(agent => {
-    const [x, y] = agent.point;
-    const preview = safeStatus(agent.status) === 'em-andamento' && (!selectedPoint || agent.id !== selectedAgent?.id)
-      && Math.abs(x - (selectedPoint?.[0] ?? -1000)) > 300;
-    return seatMarker(agent, agent.id === selectedAgent?.id, preview);
-  }));
+  const visibleSelection = filteredSeats.find(agent => agent.id === selectedAgent?.id);
+  board['map-agents'].replaceChildren(...filteredSeats.map(agent => seatMarker(agent, agent === visibleSelection)));
+  board['scene-log'].hidden = !visibleSelection;
+  board['scene-agent'].textContent = visibleSelection?.name || '';
+  const latestReply = Array.isArray(visibleSelection?.chat) ? visibleSelection.chat.at(-1)?.text : null;
+  board['scene-activity'].textContent = visibleSelection ? latestReply || agentActivity(visibleSelection) : '';
   renderSummary(floor);
   renderList(filteredAgents, selectedAgent);
   renderActivity(selectedAgent, floor);
   renderView();
   if (activeFloor || activeAgent) {
     window.requestAnimationFrame(() => {
-      const group = activeFloor ? board['floor-list'] : board['agent-list'];
+      const group = activeFloor ? board['floor-list'] : board[activeInScene ? 'map-agents' : 'agent-list'];
       const selector = activeFloor ? `[data-floor="${CSS.escape(activeFloor)}"]` : `[data-agent="${CSS.escape(activeAgent)}"]`;
       group.querySelector(selector)?.focus({ preventScroll: true });
     });
@@ -820,6 +811,11 @@ board['team-filter'].addEventListener('change', syncFilters);
 board['status-filter'].addEventListener('change', syncFilters);
 board['sort-filter'].addEventListener('change', syncFilters);
 board['agent-search'].addEventListener('input', syncFilters);
+mobileFloor.addEventListener('change', renderOffice);
+board['scene-open-chat'].addEventListener('click', () => {
+  showDetails(board['chat-tab']);
+  board['chat-tab'].focus();
+});
 board['view-office'].addEventListener('click', () => setView('office'));
 board['view-list'].addEventListener('click', () => setView('list'));
 board['map-fit'].addEventListener('click', () => setZoom(1, true));
