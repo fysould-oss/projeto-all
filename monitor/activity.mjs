@@ -120,6 +120,7 @@ export function createActivityMonitor() {
         project.agents.push({
           id: token(thread.id),
           remoteEligible: isRemoteEligible(thread, remote),
+            remoteWorktreeEligible: isRemoteEligible(thread, remote) && remote.editable.has(thread.id),
           name,
           teamId: roleId === 'coordenacao' ? 'produto' : roleId ?? null,
           ...(roleId ? { roleId } : {}),

@@ -68,6 +68,8 @@ test('atomic claims target only an eligible session, erase text and permit idemp
   assert.equal((await (await request('instructions', task)).json()).status, 'queued');
   assert.equal((await request('instructions', task)).status, 200);
   assert.equal((await request('instructions', { ...task, instruction: 'Outro texto' })).status, 409);
+  assert.equal((await request('instructions', { ...task, mode: 'worktree' })).status, 409);
+  assert.equal((await request('instructions', { ...task, mode: 'shell' })).status, 400);
   assert.deepEqual(await (await request('claim', { sessionIds: ['a'.repeat(24)] }, 'device')).json(), { job: null });
   const deliveries = await Promise.all([1, 2].map(async () =>
     (await (await request('claim', { sessionIds: [session] }, 'device')).json()).job));
@@ -76,7 +78,7 @@ test('atomic claims target only an eligible session, erase text and permit idemp
   assert.equal(delivery.instruction, task.instruction);
   assert.equal(sql.prepare('SELECT instruction FROM office_instructions').get().instruction, null);
   assert.equal((await request('instructions', task)).status, 200);
-  const result = { id: task.id, receipt: delivery.receipt, status: 'completed' };
+  const result = { id: task.id, receipt: delivery.receipt, status: 'completed', tests:'passed' };
   const beat = { id: task.id, receipt: delivery.receipt, phase: 'turn.started' };
   assert.equal((await request('progress', beat, 'owner')).status, 403);
   assert.equal((await request('progress', {...beat,receipt:crypto.randomUUID()}, 'device')).status, 409);
@@ -93,6 +95,7 @@ test('atomic claims target only an eligible session, erase text and permit idemp
   assert.equal(read.status,'completed');
   assert.equal(read.stale,false);
   assert.equal(read.progress,'turn.started');
+  assert.equal(read.tests,'passed');
   assert.equal((await request('progress',beat,'device')).status,409);
 });
 

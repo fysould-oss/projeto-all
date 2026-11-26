@@ -4,7 +4,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { coordinateResume, enqueue, openQueue, recentJobs, recover, runSlot } from './coordinator.mjs';
+import { coordinateResume, enqueue, openQueue, recentJobs, recover, runSlot, remoteResults } from './coordinator.mjs';
 
 test('dois executores isolam arquivos, limitam concorrência e guardam somente metadados', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'office-coordinator-'));
@@ -55,5 +55,14 @@ test('dois executores isolam arquivos, limitam concorrência e guardam somente m
     db.prepare("UPDATE jobs SET owner=NULL WHERE id=?").run(ids[2]);
     recover(db,ids[2]);
     assert.equal(db.prepare('SELECT result FROM jobs WHERE id=?').get(ids[2]).result,'interrupted');
+    const ack={id:ids[0],receipt:'somente-para-o-relay',status:'completed',check:'git_diff_ok',tests:'passed'};
+    remoteResults(db).save(ack);
+    const reopened = openQueue(dir);
+    try {
+      assert.deepEqual(remoteResults(reopened).next(),ack);
+      assert.doesNotMatch(JSON.stringify(recentJobs(dir)), /somente-para-o-relay/);
+      remoteResults(reopened).clear(ack.id);
+      assert.equal(remoteResults(db).next(),undefined);
+    } finally { reopened.close(); }
   } finally { db.close(); await rm(dir,{recursive:true,force:true,maxRetries:5}); }
 });

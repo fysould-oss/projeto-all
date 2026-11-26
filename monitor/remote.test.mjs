@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { PassThrough } from 'node:stream';
 import { resolve } from 'node:path';
-import { createRemoteConsumer, remoteSettings, resumeRemoteTurn } from './remote.mjs';
+import { createRemoteConsumer, remoteSettings, resumeRemoteTurn, observedTest, coordinatedRemoteExecutor } from './remote.mjs';
 
 const id = 'aaaaaaaa-1111-2222-3333-123456789012';
 const hash = createHash('sha256').update(id).digest('hex').slice(0, 24);
@@ -13,6 +13,20 @@ const settings = remoteSettings({ PROJETO_ALL_REMOTE_SESSIONS: id,
 const thread = { id, cwd: resolve('.'), status: 'concluido', turnCompleted: true };
 const job = { id: 'job', receipt: 'receipt', sessionId: hash, instruction: 'inspect' };
 const signal = new AbortController().signal;
+
+test('only known completed test commands produce a summarized result', () => {
+  const event = (command,exit_code) => ({type:'item.completed',item:{type:'command_execution',command,exit_code}});
+  assert.equal(observedTest(event('node --test',0)), 'passed');
+  assert.equal(observedTest(event('powershell.exe -Command "npm test"',1)), 'failed');
+  assert.equal(observedTest(event('echo -Command npm test',0)), null);
+  assert.equal(observedTest(event('npm test && echo ok',0)), null);
+  assert.equal(observedTest(event('node --test',null)), null);
+});
+
+test('remote worktrees require a separately authorized local session', async () => {
+  const run = coordinatedRemoteExecutor(assert.fail,assert.fail,null);
+  await assert.rejects(run(settings,thread,'teste',signal,{id:'test',mode:'worktree'}),/não autorizada/);
+});
 
 test('opt-in is mandatory, unfinished, archived and revoked sessions cannot run', async () => {
   assert.equal(remoteSettings({}), null);

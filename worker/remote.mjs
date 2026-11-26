@@ -97,6 +97,8 @@ async function instructions(request, url, db, now) {
   if (!validId(id)) throw new Rejected(400, 'Identificador inválido.');
   let fingerprint;
   if (body) {
+    const mode = body.mode ?? 'resume';
+    if (!['resume','worktree'].includes(mode)) throw new Rejected(400, 'Modo inválido.');
     const instruction = typeof body.instruction === 'string' ? body.instruction.trim() : '';
     if (typeof body.sessionId !== 'string' || !sessionId.test(body.sessionId)
         || !instruction || instruction.length > 4000 || instruction.includes('\0')) {
@@ -104,18 +106,18 @@ async function instructions(request, url, db, now) {
     }
     fingerprint = await digest(instruction);
     await db.prepare(`INSERT INTO office_instructions
-      (id, session_id, instruction, instruction_hash, status, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'queued', ?, ?) ON CONFLICT(id) DO NOTHING`)
-      .bind(id, body.sessionId, instruction, fingerprint, now, now).run();
+      (id, session_id, instruction, instruction_hash, status, created_at, updated_at, mode)
+      VALUES (?, ?, ?, ?, 'queued', ?, ?, ?) ON CONFLICT(id) DO NOTHING`)
+      .bind(id, body.sessionId, instruction, fingerprint, now, now, mode).run();
   }
-  const row = await db.prepare('SELECT id, session_id, status, updated_at, progress, instruction_hash FROM office_instructions WHERE id = ?')
+  const row = await db.prepare('SELECT id, session_id, status, updated_at, progress, instruction_hash,mode,check_status,test_summary FROM office_instructions WHERE id = ?')
     .bind(id).first();
   if (!row) throw new Rejected(404, 'Instrução indisponível.');
-  if (body && (row.session_id !== body.sessionId || row.instruction_hash !== fingerprint)) {
+  if (body && (row.session_id !== body.sessionId || row.mode !== (body.mode ?? 'resume') || row.instruction_hash !== fingerprint)) {
     throw new Rejected(409, 'Este identificador já foi usado para outra instrução.');
   }
   return reply({ id: row.id, sessionId: row.session_id, status: row.status,
-    progress: row.progress, updatedAt: row.updated_at,
+    progress: row.progress, updatedAt: row.updated_at, mode: row.mode, check: row.check_status, tests: row.test_summary,
     stale: row.status === 'claimed' && now - row.updated_at > 45000 });
 }
 
@@ -135,22 +137,24 @@ async function claim(db, body, now) {
         AND q.created_at > ? AND NOT EXISTS (SELECT 1 FROM office_instructions busy
           WHERE busy.session_id = q.session_id AND busy.status = 'claimed')
         ORDER BY q.created_at, q.id LIMIT 1)`).bind(fingerprint, now, JSON.stringify(ids), now - hour),
-    db.prepare('SELECT id, session_id, instruction FROM office_instructions WHERE receipt_hash = ?')
+    db.prepare('SELECT id, session_id, instruction,mode FROM office_instructions WHERE receipt_hash = ?')
       .bind(fingerprint),
     db.prepare('UPDATE office_instructions SET instruction = NULL WHERE receipt_hash = ?').bind(fingerprint),
   ]);
   const row = selected.results[0];
-  return reply({ job: row ? { id: row.id, sessionId: row.session_id, instruction: row.instruction, receipt } : null });
+  return reply({ job: row ? { id: row.id, sessionId: row.session_id, instruction: row.instruction, mode: row.mode, receipt } : null });
 }
 
 async function result(db, body, now) {
   if (!validId(body.id) || !validId(body.receipt) || !['completed', 'failed'].includes(body.status)) {
     throw new Rejected(400, 'Resultado inválido.');
   }
+  if (body.check != null && !['git_diff_ok','git_diff_failed'].includes(body.check)) throw new Rejected(400,'Verificação inválida.');
+  if (body.tests != null && !['passed','failed'].includes(body.tests)) throw new Rejected(400,'Resultado de testes inválido.');
   const fingerprint = await digest(body.receipt);
-  await db.prepare(`UPDATE office_instructions SET status = ?, updated_at = ?
+  await db.prepare(`UPDATE office_instructions SET status = ?, updated_at = ?, check_status=?, test_summary=?
     WHERE id = ? AND receipt_hash = ? AND status = 'claimed'`)
-    .bind(body.status, now, body.id, fingerprint).run();
+    .bind(body.status, now, body.check ?? null, body.tests ?? null, body.id, fingerprint).run();
   const row = await db.prepare('SELECT status FROM office_instructions WHERE id = ? AND receipt_hash = ?')
     .bind(body.id, fingerprint).first();
   if (!row || row.status !== body.status) throw new Rejected(409, 'Entrega indisponível.');

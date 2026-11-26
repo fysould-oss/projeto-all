@@ -23,6 +23,7 @@ export function openQueue(dir = home()) {
       slot TEXT, owner INTEGER, child INTEGER, submitted TEXT NOT NULL, updated TEXT NOT NULL,
       worktree TEXT, files INTEGER, result TEXT);
     CREATE UNIQUE INDEX IF NOT EXISTS running_slot ON jobs(slot) WHERE status='running';
+    CREATE TABLE IF NOT EXISTS remote_results(id TEXT PRIMARY KEY,receipt TEXT NOT NULL,status TEXT NOT NULL,check_status TEXT);
     CREATE TABLE IF NOT EXISTS events(job TEXT NOT NULL, seq INTEGER PRIMARY KEY, kind TEXT NOT NULL, at TEXT NOT NULL);`);
   return db;
 }
@@ -141,6 +142,40 @@ export async function coordinateResume(db, id, cwd, signal, run) {
     db.prepare("UPDATE jobs SET status='failed',result='turn_failed',child=NULL,updated=? WHERE id=?").run(now(), id);
     throw error;
   }
+}
+
+export async function remoteWorktree(db, id, cwd) {
+  if (!/^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(id)) throw new Error('Identificador de tarefa inválido.');
+  const base = (await git(cwd, ['rev-parse','--verify','HEAD^{commit}'])).trim();
+  const dir = join(home(), 'worktrees');
+  mkdirSync(dir, {recursive:true});
+  const tree = join(dir, id);
+  await git(cwd, ['worktree','add','-b','coordinator/'+id,tree,base]);
+  db.prepare('UPDATE jobs SET worktree=?,base=? WHERE id=?').run(tree,base,id);
+  return tree;
+}
+
+export async function checkRemoteWorktree(db, id, tree) {
+  // Check staged and unstaged tracked changes against the worktree base.
+  const {base} = db.prepare('SELECT base FROM jobs WHERE id=?').get(id);
+  const status = await git(tree,['status','--porcelain=v1','-z','--no-renames','--untracked-files=all']);
+  db.prepare('UPDATE jobs SET files=? WHERE id=?').run(status.split('\0').filter(Boolean).length,id);
+  try { await git(tree,['diff','--check',base,'--']); return 'git_diff_ok'; }
+  catch { return 'git_diff_failed'; }
+}
+
+export function remoteResults(db) {
+  return {
+    save(result) { db.prepare('INSERT OR REPLACE INTO remote_results VALUES(?,?,?,?)').run(result.id,result.receipt,result.status,JSON.stringify({check:result.check,tests:result.tests})); },
+    next() {
+      const row = db.prepare('SELECT id,receipt,status,check_status FROM remote_results ORDER BY rowid LIMIT 1').get();
+      if (!row) return;
+      const evidence = row.check_status?.startsWith('{') ? JSON.parse(row.check_status)
+        : row.check_status ? {check:row.check_status} : {};
+      return {id:row.id,receipt:row.receipt,status:row.status,...evidence};
+    },
+    clear(id) { db.prepare('DELETE FROM remote_results WHERE id=?').run(id); },
+  };
 }
 
 export function recover(db, id) {
