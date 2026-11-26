@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Acompanhe o trabalho do Codex em um escritório isométrico com um andar por projeto.">
-  <meta name="theme-color" content="#101615">
+  <meta name="theme-color" content="#0c1220">
   <title>PROJETO ALL · Escritório do Codex</title>
-  <link rel="stylesheet" href="./style.css?v=lobby-3">
+  <link rel="stylesheet" href="./style.css?v=operations-1">
   <script src="./rules.js?v=lobby-3" defer></script>
   <script src="./online.js?v=lobby-3" defer></script>
-  <script src="./app.js?v=lobby-3" defer></script>
+  <script src="./app.js?v=operations-1" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -49,7 +49,6 @@
         <div>
           <p class="eyebrow">Sala de operações</p>
           <h1 id="team-title">Escritório do Codex</h1>
-          <p class="intro-copy">Veja projetos ativos, sessões observadas e o próximo ponto de atenção.</p>
         </div>
         <div class="intro-actions">
           <a class="live-office-link" id="live-office-link" href="https://projeto-all-condoconnect.sunnyode3.chatgpt.site/">Abrir painel ao vivo <svg class="icon" aria-hidden="true"><use href="#icon-arrow"></use></svg></a>
@@ -61,7 +60,6 @@
         <aside class="side-panel floor-nav" aria-labelledby="floors-title">
           <div class="side-heading">
             <div>
-              <p class="eyebrow">Navegação</p>
               <h2 id="floors-title">Andares</h2>
             </div>
             <span id="floor-count" class="count-badge">0</span>
@@ -98,21 +96,6 @@
             </div>
           </header>
 
-          <div class="floor-summary" aria-label="Resumo do andar">
-            <div class="summary-card"><span class="summary-label">Sessões observadas</span><strong id="summary-observed">Não informado</strong><span id="summary-observed-note" class="summary-note">Escopo do monitor</span></div>
-            <div class="summary-card"><span class="summary-label">Em andamento</span><strong id="summary-active">Não informado</strong><span class="summary-note">Status atual</span></div>
-            <div class="summary-card"><span class="summary-label">Bloqueadas</span><strong id="summary-blocked">Não informado</strong><span class="summary-note">Sem inferências</span></div>
-            <div class="summary-card summary-card-signal"><span class="summary-label">Último sinal recebido</span><strong id="summary-signal">Não informado</strong><span id="summary-signal-note" class="summary-note">Sincronização</span></div>
-          </div>
-          <p id="summary-scope" class="summary-scope">Métricas calculadas a partir dos dados disponíveis.</p>
-
-          <div class="office-filters" aria-label="Filtros de sessões">
-            <label class="search-control" for="agent-search"><span>Buscar</span><input id="agent-search" type="search" autocomplete="off" placeholder="Nome ou atividade" /></label>
-            <label class="select-control"><span>Equipe</span><select id="team-filter"><option value="">Todas</option></select></label>
-            <label class="select-control"><span>Estado</span><select id="status-filter"><option value="">Todos</option></select></label>
-            <label class="select-control"><span>Ordenar</span><select id="sort-filter"><option value="recent">Atividade recente</option><option value="name">Nome</option><option value="status">Estado</option></select></label>
-          </div>
-
           <div id="office-view" class="office-view">
             <div id="map-scroll" class="map-scroll" tabindex="0" aria-label="Mapa do escritório. Use os controles de escala ou deslize para explorar o andar.">
               <div class="map" id="office-map">
@@ -124,17 +107,32 @@
             <div id="team-legend" class="team-legend" aria-label="Cores das equipes"></div>
           </div>
 
+          <div class="office-filters" aria-label="Filtros de sessões">
+            <label class="search-control" for="agent-search"><span>Buscar</span><input id="agent-search" type="search" autocomplete="off" placeholder="Nome ou atividade" /></label>
+            <label class="select-control"><span>Equipe</span><select id="team-filter"><option value="">Todas</option></select></label>
+            <label class="select-control"><span>Estado</span><select id="status-filter"><option value="">Todos</option></select></label>
+            <label class="select-control"><span>Ordenar</span><select id="sort-filter"><option value="recent">Atividade recente</option><option value="name">Nome</option><option value="status">Estado</option></select></label>
+          </div>
+
           <section id="list-view" class="list-view" aria-labelledby="list-title" hidden>
             <div class="list-heading"><div><h3 id="list-title">Sessões do andar</h3><p id="list-meta">Não informado</p></div><span id="list-source-note" class="list-source-note"></span></div>
             <div id="agent-list-scroll" class="agent-list-scroll" tabindex="0">
               <div id="agent-list" class="agent-list"></div>
             </div>
           </section>
+          <div class="floor-summary" aria-label="Resumo do andar">
+            <div class="summary-card"><span class="summary-label">Sessões observadas</span><strong id="summary-observed">Não informado</strong><span id="summary-observed-note" class="summary-note">Escopo do monitor</span></div>
+            <div class="summary-card"><span class="summary-label">Em andamento</span><strong id="summary-active">Não informado</strong><span class="summary-note">Status atual</span></div>
+            <div class="summary-card"><span class="summary-label">Bloqueadas</span><strong id="summary-blocked">Não informado</strong><span class="summary-note">Sem inferências</span></div>
+            <div class="summary-card summary-card-signal"><span class="summary-label">Último sinal recebido</span><strong id="summary-signal">Não informado</strong><span id="summary-signal-note" class="summary-note">Sincronização</span></div>
+          </div>
+          <p id="summary-scope" class="summary-scope">Métricas calculadas a partir dos dados disponíveis.</p>
+
         </section>
 
         <aside class="inspector-panel" aria-labelledby="inspector-title">
           <header class="inspector-header">
-            <div><p class="eyebrow">Contexto</p><h2 id="inspector-title">Inspetor da sessão</h2></div>
+            <div><h2 id="inspector-title">Inspetor da sessão</h2></div>
             <span id="inspector-source" class="source-badge">Não informado</span>
           </header>
           <div id="agent-focus" class="agent-focus"></div>
