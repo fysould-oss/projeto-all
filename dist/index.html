@@ -6,10 +6,10 @@
   <meta name="description" content="Acompanhe o trabalho do Codex em um escritório isométrico com um andar por projeto.">
   <meta name="theme-color" content="#0c1220">
   <title>PROJETO ALL · Escritório do Codex</title>
-  <link rel="stylesheet" href="./style.css?v=office-floor-2">
+  <link rel="stylesheet" href="./style.css?v=office-living-3">
   <script src="./rules.js?v=lobby-3" defer></script>
   <script src="./online.js?v=lobby-3" defer></script>
-  <script src="./app.js?v=office-floor-2" defer></script>
+  <script src="./app.js?v=office-living-3" defer></script>
 </head>
 <body>
   <svg class="icon-sprite" aria-hidden="true" focusable="false">
@@ -86,8 +86,8 @@
               <div id="map-scroll" class="map-scroll" tabindex="0" aria-label="Mapa do escritório. Use os controles de escala ou deslize para explorar o andar.">
                 <div class="map" id="office-map">
                   <picture>
-                    <source media="(max-width: 640px)" srcset="./office-mobile.webp?v=office-floor-2">
-                    <img class="office-art" src="./office-floor.webp?v=office-floor-2" alt="Escritório em pixel art com salas, corredores e estações de trabalho.">
+                    <source media="(max-width: 640px)" srcset="./office-mobile.webp?v=office-living-3">
+                    <img class="office-art" src="./office-floor.webp?v=office-living-3" alt="Escritório em pixel art com salas, corredores e estações de trabalho.">
                   </picture>
                   <div id="map-agents"></div>
                 </div>
@@ -115,6 +115,7 @@
                 <button id="view-office" class="view-button" type="button" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#icon-office"></use></svg>Sala</button>
                 <button id="view-list" class="view-button" type="button" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#icon-list"></use></svg>Lista</button>
               </div>
+              <button id="map-motion" class="view-button map-motion" type="button" aria-pressed="false" disabled>Movimento</button>
               <div class="map-controls" role="group" aria-label="Escala do escritório">
                 <button id="map-fit" class="icon-button" type="button" aria-label="Ajustar sala à tela" title="Ajustar à tela"><svg class="icon" aria-hidden="true"><use href="#icon-fit"></use></svg></button>
                 <button id="map-zoom-out" class="icon-button" type="button" aria-label="Reduzir sala" title="Reduzir"><svg class="icon" aria-hidden="true"><use href="#icon-minus"></use></svg></button>

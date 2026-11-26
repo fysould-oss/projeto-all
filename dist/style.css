@@ -174,19 +174,6 @@ nav a[aria-current="page"] { border-color: #506747; background: var(--accent-sof
 .agent-avatar[data-avatar="flex"] { background-position: 100% 100%; }
 .seat-button.agent-lead { border-color: #f4ce8b; }
 .seat-button.agent-lead::after { background: #f4ce8b; }
-.map-seat .speech { position: absolute; bottom: clamp(34px, 6.2cqw, 67px); left: 0; width: max-content; min-width: 112px; max-width: min(210px, 25cqw); padding: 7px 9px; border: 2px solid var(--team-color, var(--line-strong)); border-radius: 8px; background: #f1f7e9; box-shadow: 0 3px 0 #14221c80; color: #14221c; font-size: 11px; line-height: 1.28; overflow-wrap: anywhere; pointer-events: none; transform: translateX(-50%); }
-.map-seat .speech::after { position: absolute; bottom: -6px; left: calc(50% - 5px); width: 8px; height: 8px; border-right: 2px solid var(--team-color, var(--line-strong)); border-bottom: 2px solid var(--team-color, var(--line-strong)); background: #f1f7e9; content: ""; transform: rotate(45deg); }
-.map-seat .speech strong, .map-seat .speech span { position: relative; z-index: 1; display: block; }
-.map-seat .speech strong { margin-bottom: 2px; font-size: 11px; }
-.map-seat .speech-preview { bottom: clamp(30px, 5.2cqw, 58px); min-width: 0; max-width: min(112px, 14cqw); padding: 5px 6px; border-width: 1px; font-size: 9px; opacity: .92; }
-.map-seat .speech-preview strong { display: none; }
-.map-seat .speech-preview span { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.map-seat.bubble-left .speech { left: 4px; transform: translateX(0); }
-.map-seat.bubble-left .speech::after { left: 18px; }
-.map-seat.bubble-right .speech { left: -4px; transform: translateX(-100%); }
-.map-seat.bubble-right .speech::after { right: 18px; left: auto; }
-.map-seat.bubble-top .speech { top: clamp(36px, 5.7cqw, 62px); bottom: auto; }
-.map-seat.bubble-top .speech::after { top: -6px; bottom: auto; transform: rotate(225deg); }
 
 .team-produto { --team-color: #c7ef78; }
 .team-contas { --team-color: #79e0e6; }
@@ -348,7 +335,6 @@ nav a[aria-current="page"] { border-color: #506747; background: var(--accent-sof
   .office-filters { gap: 6px; }
   .select-control select { padding-inline: 6px; }
   .live-feed li { grid-template-columns: 1fr; gap: 2px; }
-  .map-seat .speech { max-width: min(160px, 35cqw); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -465,40 +451,71 @@ nav a[aria-current="page"] { border-color: #506747; background: var(--accent-sof
 .seat-button.has-avatar { width: clamp(35px, 7.4cqw, 95px); height: clamp(35px, 7.4cqw, 95px); transform: translate(-50%, -76%); }
 .seat-button.has-avatar::after { right: 25%; bottom: 15%; width: 6px; height: 6px; border-radius: 2px; }
 .map-seat .speech {
+  --bubble-edge: #65899c;
+  --bubble-bg: #111e2bef;
+  position: absolute;
   bottom: clamp(25px, 5.2cqw, 60px);
+  left: 0;
   display: grid;
   justify-items: center;
-  gap: 1px;
-  min-width: 0;
-  max-width: min(145px, 18cqw);
-  padding: 0;
-  border: 0;
-  background: transparent;
-  box-shadow: none;
-  color: var(--text);
+  gap: 2px;
+  width: max-content;
+  min-width: min(48px, 13cqw);
+  max-width: min(148px, 24cqw);
+  padding: 4px 6px;
+  border: 1px solid var(--bubble-edge);
+  border-radius: 3px;
+  background: var(--bubble-bg);
+  box-shadow: 2px 3px 0 #060b14a0;
   font: 700 clamp(.58rem, 1.15cqw, .85rem)/1.1 var(--terminal-font);
   text-align: center;
   text-transform: uppercase;
+  pointer-events: none;
+  transform: translateX(-50%);
 }
-.map-seat .speech::after { content: none; }
+.map-seat .speech::after {
+  position: absolute;
+  bottom: -4px;
+  left: calc(50% - 3px);
+  width: 6px;
+  height: 6px;
+  border-right: 1px solid var(--bubble-edge);
+  border-bottom: 1px solid var(--bubble-edge);
+  background: var(--bubble-bg);
+  content: "";
+  transform: rotate(45deg);
+}
 .map-seat .speech strong, .map-seat .speech-status {
   max-width: 100%;
-  margin: 0;
-  padding: 2px 4px;
   overflow: hidden;
-  border: 1px solid #688194;
-  border-radius: 2px;
-  background: #111b28;
   color: var(--cyan);
-  font: inherit;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.map-seat .speech strong { color: var(--team-color, var(--text)); }
-.map-seat .speech-status.em-andamento { color: var(--accent); border-color: #6c986a; }
-.map-seat .speech-status.bloqueado { color: var(--danger); border-color: #a85a58; }
-.map-seat .speech-status.sem-sinal { color: var(--amber); border-color: #a48646; }
-.map-seat.selected .speech strong { background: #2a4155; border-color: var(--cyan); }
+.map-seat .speech strong { color: #f1f5fa; }
+.map-seat .speech-status.em-andamento { color: var(--accent); }
+.map-seat .speech-status.bloqueado { color: var(--danger); }
+.map-seat .speech-status.sem-sinal { color: var(--amber); }
+.map-seat.bubble-left .speech { left: 4px; transform: none; }
+.map-seat.bubble-left .speech::after { left: 10px; }
+.map-seat.bubble-right .speech { left: -4px; transform: translateX(-100%); }
+.map-seat.bubble-right .speech::after { right: 10px; left: auto; }
+.map-seat.bubble-top .speech { top: clamp(36px, 5.7cqw, 62px); bottom: auto; }
+.map-seat.bubble-top .speech::after { top: -4px; bottom: auto; transform: rotate(225deg); }
+.map-seat[data-state="em-andamento"] .speech { --bubble-edge: #88bd82; }
+.map-seat[data-state="bloqueado"] .speech { --bubble-edge: #e58d86; }
+.map-seat[data-state="sem-sinal"] .speech { --bubble-edge: #be9b4b; }
+.map-seat.selected .speech { --bubble-bg: #1b3650; }
+.map-seat:focus-within { z-index: 4; }
+.map-motion::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  background: var(--faint);
+  content: "";
+}
+.map-motion[aria-pressed="true"]::before { background: var(--accent); }
+.public-office .map-motion { display: none; }
 
 .inspector-panel { display: block; border-color: #465878; background: #171b2d; }
 .inspector-header { margin-bottom: 4px; }
@@ -540,9 +557,10 @@ nav a[aria-current="page"] { border-color: #506747; background: var(--accent-sof
   .map { aspect-ratio: 1230 / 1278; }
   .floor-summary, .public-office .floor-summary { position: static; width: auto; margin: 6px 8px 8px; }
   .scene-log { display: none; }
-  .map-seat .speech { max-width: 23cqw; bottom: clamp(21px, 5cqw, 34px); }
-  .map-seat .speech-status { display: none; }
-  .map-seat .speech strong { border-color: var(--team-color, #688194); }
+  .office-controls { justify-content: flex-start; }
+  .office-controls .map-controls { margin-left: auto; }
+  .map-seat .speech { max-width: 23cqw; bottom: clamp(21px, 5cqw, 34px); padding: 3px 4px; font-size: .59rem; }
+  .map-seat .speech-status { font-size: .53rem; }
   .seat-button.has-avatar { width: clamp(37px, 11cqw, 60px); height: clamp(37px, 11cqw, 60px); }
   .console-toolbar { gap: 8px; padding-inline: 8px; }
   .team-legend span { font-size: .72rem; }

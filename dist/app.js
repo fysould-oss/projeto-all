@@ -30,7 +30,31 @@ const staleAfterMs = 75 * 1000;
 const roleSlots = ['coordenacao', 'contas', 'comunidade', 'integracoes', 'qualidade'];
 const desktopDesks = [[15.7, 51.2], [42.2, 34.2], [70.5, 54.7], [35.6, 56.8], [47, 56.8], [36.5, 78.5], [76, 70], [51.9, 34.2], [64, 86.6]];
 const mobileDesks = [[17, 36.3], [40.5, 44.7], [68.7, 44.7], [40.5, 65.9], [68.7, 65.9], [22.4, 91.2], [43, 91.2], [63.7, 91.2], [84.3, 91.2]];
+// Each desk has an outward route through nearby walkable space, played in reverse on return.
+const desktopWalks = [
+  [[19, 61], [25, 56], [30, 49]],
+  [[42, 36], [43, 38], [47, 38]],
+  [[71, 57], [66, 53], [64, 47]],
+  [[35, 59], [35, 62], [30, 65]],
+  [[47, 59], [47, 62], [53, 62]],
+  [[36.5, 81], [41, 83], [48, 84]],
+  [[76, 72], [70, 74], [65, 70], [62, 66]],
+  [[52, 36], [51, 39], [55, 36]],
+  [[63, 89], [58, 91], [54, 88]],
+];
+const mobileWalks = [
+  [[17, 39], [29, 39], [29, 48]],
+  [[40.5, 47], [53, 47], [56, 44]],
+  [[68.7, 47], [58, 47], [56, 44]],
+  [[40.5, 68], [53, 69], [56, 73]],
+  [[68.7, 68], [58, 69], [56, 73]],
+  [[22.4, 94], [31, 94], [33, 90]],
+  [[43, 94], [51, 94], [53, 90]],
+  [[63.7, 94], [71, 94], [73, 90]],
+  [[84.3, 94], [91, 94], [91, 86]],
+];
 const mobileFloor = window.matchMedia('(max-width: 640px)');
+const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
 const board = Object.fromEntries([
   'connection', 'top-project', 'top-signal', 'scope-note', 'floor-count', 'floor-list', 'bridge-note',
   'map-current', 'map-meta', 'project-repository', 'project-state', 'team-filter', 'status-filter',
@@ -40,7 +64,7 @@ const board = Object.fromEntries([
   'list-source-note', 'agent-list', 'agent-list-scroll', 'agent-focus', 'inspector-source', 'activity-scope',
   'live-feed', 'project-feed', 'agent-chat', 'chat-empty', 'chat-follow', 'chat-new', 'inspector-note',
   'view-office', 'view-list', 'map-fit', 'map-zoom-out', 'map-zoom-in', 'map-zoom-label',
-  'summary-floors', 'scene-log', 'scene-agent', 'scene-activity', 'scene-open-chat', 'chat-tab',
+  'summary-floors', 'scene-log', 'scene-agent', 'scene-activity', 'scene-open-chat', 'chat-tab', 'map-motion',
 ].map(id => [id, document.getElementById(id)]));
 const rules = document.querySelector('#rules');
 const ruleSearch = document.querySelector('#rule-search');
@@ -48,6 +72,8 @@ const detailTabs = [...document.querySelectorAll('.detail-tab')];
 const selections = new Map();
 const seatAssignments = new Map();
 const chatRecords = new Map();
+const sceneMarkers = new Map();
+let sceneFloor = null;
 const filters = { search: '', team: '', status: '', sort: 'recent' };
 let catalog;
 let projectManifest;
@@ -64,6 +90,7 @@ let refreshInFlight = false;
 let view = readPreference('view', 'office') === 'list' ? 'list' : 'office';
 let zoom = clamp(Number(readPreference('zoom', '1')), 1, 2);
 let followMessages = true;
+let motionEnabled = readPreference('motion', 'on') !== 'off';
 
 function readPreference(key, fallback) {
   try { return localStorage.getItem('projeto-all.' + key) ?? fallback; } catch { return fallback; }
@@ -213,6 +240,7 @@ function seatsFor(floor) {
   const agentById = new Map(agents.map(agent => [agent.id, agent]));
   const orderedAgents = [...agents].sort((a, b) => String(a.id).localeCompare(String(b.id)));
   const desks = mobileFloor.matches ? mobileDesks : desktopDesks;
+  const walks = mobileFloor.matches ? mobileWalks : desktopWalks;
   const roleAgents = new Map();
   for (const agent of orderedAgents) {
     if (!roleSlots.includes(agent.roleId)) continue;
@@ -238,13 +266,14 @@ function seatsFor(floor) {
   }
   const fixed = roleSlots.flatMap((roleId, slot) => {
     const agent = roleAgents.get(roleId);
-    return agent ? [{ ...agent, point: desks[slot], teamId: agentTeam(agent), avatarRole: roleId, lead: roleId === 'coordenacao' }] : [];
+    return agent ? [{ ...agent, point: desks[slot], walk: walks[slot], teamId: agentTeam(agent), avatarRole: roleId, lead: roleId === 'coordenacao' }] : [];
   });
   const assigned = [...assignments].map(([id, slot]) => {
     const agent = agentById.get(id);
     return {
       ...agent,
       point: desks[slot],
+      walk: walks[slot],
       teamId: agentTeam(agent),
       avatarRole: 'flex',
       lead: false,
@@ -294,11 +323,70 @@ function selectAgent(agent, center = false) {
   if (center) window.requestAnimationFrame(centerSelectedSeat);
 }
 
-function seatMarker(agent, selected) {
+const animationSupported = typeof Element.prototype.animate === 'function';
+
+function motionAllowed() {
+  return animationSupported && motionEnabled && !reducedMotion.matches;
+}
+
+function walkFrames(point, waypoints) {
+  const path = [point, ...waypoints, ...waypoints.slice(0, -1).reverse(), point];
+  const travel = [0];
+  for (let index = 1; index < path.length; index++) {
+    const [x, y] = path[index];
+    const [previousX, previousY] = path[index - 1];
+    travel.push(travel[index - 1] + Math.hypot(x - previousX, (y - previousY) * (mobileFloor.matches ? 1 : .6)) * 330);
+  }
+  const duration = Math.max(28_000, travel.at(-1) + 13_000);
+  const rest = duration - travel.at(-1);
+  const position = ([x, y], offset) => ({ left: x + '%', top: y + '%', offset });
+  const positions = [position(point, 0), ...path.map((step, index) => position(step, (rest + travel[index]) / duration))];
+  const stride = [{ transform: 'none', offset: 0 }];
+  let facing = 1;
+  for (let index = 1; index < path.length; index++) {
+    const dx = path[index][0] - path[index - 1][0];
+    if (dx) facing = Math.sign(dx);
+    const segment = travel[index] - travel[index - 1];
+    const steps = Math.max(2, Math.round(segment / 165));
+    for (let step = 0; step < steps; step++) {
+      const offset = (rest + travel[index - 1] + segment * step / steps) / duration;
+      stride.push({ transform: `translateY(${step % 2 ? -2 : 0}px) scaleX(${facing})`, offset, easing: 'steps(1, end)' });
+    }
+  }
+  stride[0].easing = 'steps(1, end)';
+  stride.push({ transform: 'none', offset: 1 });
+  return { positions, stride, duration };
+}
+
+function animateWalk(seat, button, avatar, agent) {
+  const { positions, stride, duration } = walkFrames(agent.point, agent.walk);
+  let phase = 0;
+  for (const character of agent.id) phase = (Math.imul(phase, 31) + character.codePointAt(0)) >>> 0;
+  const options = { duration, iterations: Infinity };
+  // A stable phase keeps the same footstep if a marker is recreated after filtering or a layout change.
+  const start = -(phase % duration);
+  const animations = [seat.animate(positions, options), avatar.animate(stride, options)];
+  for (const animation of animations) animation.startTime = start;
+  let hovered = false;
+  const syncPlayback = () => {
+    const interacting = hovered || document.activeElement === button;
+    for (const animation of animations) {
+      if (interacting) animation.pause();
+      else animation.play();
+    }
+  };
+  button.addEventListener('pointerenter', () => { hovered = true; syncPlayback(); });
+  button.addEventListener('pointerleave', () => { hovered = false; syncPlayback(); });
+  button.addEventListener('focus', syncPlayback);
+  button.addEventListener('blur', syncPlayback);
+}
+
+function seatMarker(agent, moving) {
   const [x, y] = agent.point;
   const teamId = safeClass(agent.teamId);
   const status = safeStatus(agent.status);
   const seat = element('div', 'map-seat' + (teamId ? ' team-' + teamId : ''));
+  seat.dataset.state = status;
   seat.style.left = x + '%';
   seat.style.top = y + '%';
   if (x < 13) seat.classList.add('bubble-left');
@@ -306,7 +394,6 @@ function seatMarker(agent, selected) {
   if (y < 15) seat.classList.add('bubble-top');
   const button = element('button', 'seat-button ' + status + ' has-avatar');
   button.classList.toggle('agent-lead', agent.lead === true);
-  setPressed(button, selected);
   button.dataset.agent = agent.id;
   button.setAttribute('aria-label', `${agent.name} · ${roleName(agent)} · ${statusLabels[status]}`);
   button.title = `${agent.name} · ${statusLabels[status]}`;
@@ -320,10 +407,48 @@ function seatMarker(agent, selected) {
   const speech = element('div', 'speech');
   speech.setAttribute('aria-hidden', 'true');
   speech.append(element('strong', '', agent.name));
-  speech.append(element('span', 'speech-status ' + status, statusLabels[status]));
+  speech.append(element('span', 'speech-status ' + status, status === 'em-andamento' ? 'Trabalhando' : statusLabels[status]));
   seat.append(speech);
-  seat.classList.toggle('selected', selected);
+  if (moving) animateWalk(seat, button, avatar, agent);
   return seat;
+}
+
+function renderMapMarkers(floor, agents, selected) {
+  const root = board['map-agents'];
+  const activeIds = new Set(agents.map(agent => agent.id));
+  if (sceneFloor !== floor.id) {
+    root.replaceChildren();
+    sceneMarkers.clear();
+    sceneFloor = floor.id;
+  }
+  for (const [id, marker] of sceneMarkers) {
+    if (activeIds.has(id)) continue;
+    marker.node.remove();
+    sceneMarkers.delete(id);
+  }
+  const allowMotion = motionAllowed();
+  const hasRoute = agents.some(agent => safeStatus(agent.status) === 'em-andamento');
+  const motionButton = board['map-motion'];
+  motionButton.disabled = !animationSupported || reducedMotion.matches || !hasRoute;
+  setPressed(motionButton, allowMotion);
+  motionButton.title = reducedMotion.matches ? 'Movimento reduzido pelo sistema' : 'Animação ilustrativa dos agentes';
+
+  for (const agent of agents) {
+    const status = safeStatus(agent.status);
+    const moving = allowMotion && status === 'em-andamento';
+    const signature = JSON.stringify([agent.name, roleName(agent), agent.teamId, agent.avatarRole, agent.lead, status, agent.point, agent.walk, moving]);
+    let marker = sceneMarkers.get(agent.id);
+    if (marker?.signature !== signature) {
+      const node = seatMarker(agent, moving);
+      if (marker) marker.node.replaceWith(node);
+      else root.append(node);
+      marker = { node, button: node.querySelector('button'), signature };
+      sceneMarkers.set(agent.id, marker);
+    }
+    const chosen = agent.id === selected?.id;
+    marker.node.classList.toggle('selected', chosen);
+    setPressed(marker.button, chosen);
+  }
 }
 
 function sourceTag(source) {
@@ -599,7 +724,7 @@ function renderOffice() {
   const seats = seatsFor(floor);
   const filteredSeats = seats.filter(filterMatches);
   const visibleSelection = filteredSeats.find(agent => agent.id === selectedAgent?.id);
-  board['map-agents'].replaceChildren(...filteredSeats.map(agent => seatMarker(agent, agent === visibleSelection)));
+  renderMapMarkers(floor, filteredSeats, visibleSelection);
   board['scene-log'].hidden = !visibleSelection;
   board['scene-agent'].textContent = visibleSelection?.name || '';
   const latestReply = Array.isArray(visibleSelection?.chat) ? visibleSelection.chat.at(-1)?.text : null;
@@ -610,6 +735,7 @@ function renderOffice() {
   renderView();
   if (activeFloor || activeAgent) {
     window.requestAnimationFrame(() => {
+      if (document.activeElement !== document.body && document.activeElement !== activeElement) return;
       const group = activeFloor ? board['floor-list'] : board[activeInScene ? 'map-agents' : 'agent-list'];
       const selector = activeFloor ? `[data-floor="${CSS.escape(activeFloor)}"]` : `[data-agent="${CSS.escape(activeAgent)}"]`;
       group.querySelector(selector)?.focus({ preventScroll: true });
@@ -812,6 +938,12 @@ board['status-filter'].addEventListener('change', syncFilters);
 board['sort-filter'].addEventListener('change', syncFilters);
 board['agent-search'].addEventListener('input', syncFilters);
 mobileFloor.addEventListener('change', renderOffice);
+reducedMotion.addEventListener('change', renderOffice);
+board['map-motion'].addEventListener('click', () => {
+  motionEnabled = !motionEnabled;
+  savePreference('motion', motionEnabled ? 'on' : 'off');
+  renderOffice();
+});
 board['scene-open-chat'].addEventListener('click', () => {
   showDetails(board['chat-tab']);
   board['chat-tab'].focus();
