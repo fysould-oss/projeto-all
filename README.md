@@ -48,13 +48,13 @@ O catálogo fica em dist/rules.js e descreve o comportamento observado no commit
 
 ## Aplicativo Android
 
-O aplicativo Android abre o escritório privado ao vivo, preserva o login no celular e usa a mesma sincronização do painel web. O APK atual é gerado pelo GitHub Actions como artefato de teste:
+O aplicativo Android abre o escritório privado ao vivo, preserva o login no celular e usa a mesma sincronização do painel web.
 
-1. Abra o [build do APK no GitHub Actions](https://github.com/fysould-oss/projeto-all/actions/runs/45751841241).
-2. Entre no GitHub, se for solicitado, e abra a seção **Artifacts**.
-3. Baixe `projeto-all-debug-apk.zip`, extraia o arquivo e abra `app-debug.apk` no Android.
-4. Autorize a instalação de aplicativos desconhecidos quando o sistema solicitar.
-5. Abra o aplicativo e entre com a conta autorizada do ChatGPT.
+1. Baixe o [APK direto para Android](https://raw.githubusercontent.com/fysould-oss/projeto-all/main/downloads/projeto-all-v1.1.0.apk).
+2. Abra o arquivo baixado e autorize a instalação de aplicativos desconhecidos quando o sistema solicitar.
+3. Abra o aplicativo e entre com a conta autorizada do ChatGPT.
+
+O [build do APK no GitHub Actions](https://github.com/fysould-oss/projeto-all/actions/runs/45755314127) também fica disponível para auditoria.
 
 O computador que possui as sessões do Codex deve continuar ligado com `node server.mjs` em execução. O APK é uma build debug para instalação direta e não contém credenciais.
 
