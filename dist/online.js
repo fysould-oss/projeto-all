@@ -13,6 +13,44 @@ if (location.origin === privateOffice) {
   };
 }
 const isLiveOffice = location.origin === privateOffice || ['127.0.0.1', 'localhost'].includes(location.hostname);
+if (['127.0.0.1', 'localhost'].includes(location.hostname)) {
+  const details = document.createElement('details');
+  details.className = 'local-queue';
+  const heading = document.createElement('summary');
+  heading.textContent = 'Fila de tarefas deste computador';
+  const list = document.createElement('ul');
+  details.append(heading, list);
+  document.querySelector('.workspace-shell')?.before(details);
+  const states = { queued: 'Na fila', running: 'Em execução', done: 'Concluída', failed: 'Falhou' };
+  let pending = false;
+  async function updateQueue() {
+    if (!details.open || document.hidden || pending) return;
+    pending = true;
+    try {
+      const response = await fetch('./api/local-tasks', { cache: 'no-store', signal: AbortSignal.timeout(4000) });
+      if (!response.ok) throw new Error();
+      const { jobs } = await response.json();
+      const rows = jobs.map(job => {
+        const row = document.createElement('li');
+        const project = document.createElement('strong');
+        project.textContent = job.project;
+        const state = states[job.status] || 'Estado desconhecido';
+        row.append(project, ' · ' + state);
+        if (job.slot) row.append(' · Executor ' + job.slot.toUpperCase());
+        if (job.files != null) row.append(' · Arquivos pendentes: ' + job.files);
+        return row;
+      });
+      list.replaceChildren(...rows);
+      if (!rows.length) list.textContent = 'Nenhuma tarefa registrada.';
+    } catch { list.textContent = 'Fila local indisponível.'; }
+    finally { pending = false; }
+  }
+  let timer;
+  details.addEventListener('toggle', () => {
+    clearInterval(timer);
+    if (details.open) { updateQueue(); timer = setInterval(updateQueue, 5000); }
+  });
+}
 const liveLink = document.getElementById('live-office-link');
 if (liveLink) liveLink.hidden = isLiveOffice;
 if (!isLiveOffice) {
