@@ -44,6 +44,7 @@ function normalizeTask(task) {
     agent: {
       id: 'cloud:' + taskId,
       name: 'Tarefa do Codex Cloud',
+      source: 'cloud',
       status,
       task: task.is_review === true ? 'Revisão de código na nuvem' : 'Tarefa na nuvem',
       activity,
@@ -58,7 +59,7 @@ function groupByEnvironment(tasks) {
   for (const task of tasks.sort((a, b) => b.agent.updatedAt.localeCompare(a.agent.updatedAt))) {
     let group = environments.get(task.environmentId);
     if (!group) {
-      group = { id: task.environmentId, name: '', agents: [], updatedAt: task.agent.updatedAt };
+      group = { id: task.environmentId, name: '', source: 'cloud', agents: [], updatedAt: task.agent.updatedAt };
       environments.set(group.id, group);
     }
     if (!group.name) group.name = task.label;

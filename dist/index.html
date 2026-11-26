@@ -4,96 +4,180 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="Acompanhe o trabalho do Codex em um escritório isométrico com um andar por projeto.">
+  <meta name="theme-color" content="#101615">
   <title>PROJETO ALL · Escritório do Codex</title>
-  <link rel="stylesheet" href="./style.css?v=lobby-2">
-  <script src="./rules.js?v=lobby-2" defer></script>
-  <script src="./online.js?v=lobby-2" defer></script>
-  <script src="./app.js?v=lobby-2" defer></script>
+  <link rel="stylesheet" href="./style.css?v=lobby-3">
+  <script src="./rules.js?v=lobby-3" defer></script>
+  <script src="./online.js?v=lobby-3" defer></script>
+  <script src="./app.js?v=lobby-3" defer></script>
 </head>
 <body>
+  <svg class="icon-sprite" aria-hidden="true" focusable="false">
+    <symbol id="icon-office" viewBox="0 0 24 24"><path d="m3 10 9-6 9 6v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-9Z"/><path d="M8 20v-6h8v6M8 10h.01M12 10h.01M16 10h.01"/></symbol>
+    <symbol id="icon-list" viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12"/><path d="M3.5 6h.01M3.5 12h.01M3.5 18h.01"/></symbol>
+    <symbol id="icon-fit" viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M8 21H5a2 2 0 0 1-2-2v-3M16 21h3a2 2 0 0 0 2-2v-3"/><path d="m9 9-2 2 2 2M15 9l2 2-2 2M7 11h10"/></symbol>
+    <symbol id="icon-minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="icon-pulse" viewBox="0 0 24 24"><path d="M3 12h4l2-6 4 12 2-6h6"/></symbol>
+    <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M5 12h13M13 6l6 6-6 6"/></symbol>
+    <symbol id="icon-inbox" viewBox="0 0 24 24"><path d="M4 5h16v14H4zM4 14h4l2 2h4l2-2h4"/></symbol>
+    <symbol id="icon-chat" viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4V5Z"/><path d="M8 9h8M8 12h5"/></symbol>
+  </svg>
   <header class="top">
     <div class="top-inner">
-      <a class="brand" href="#agentes"><span class="mark" aria-hidden="true"></span>PROJETO ALL</a>
+      <a class="brand" href="#agentes" aria-label="PROJETO ALL, abrir escritório">
+        <span class="mark" aria-hidden="true"></span>
+        <span>PROJETO ALL</span>
+      </a>
+      <div class="top-context" aria-live="polite">
+        <span class="eyebrow">Andar atual</span>
+        <strong id="top-project">Não informado</strong>
+      </div>
+      <div class="top-status">
+        <div class="connection" id="connection" role="status" aria-live="polite">Iniciando monitor</div>
+        <div class="signal"><span>Último sinal</span><time id="top-signal">Não informado</time></div>
+      </div>
       <nav aria-label="Navegação principal">
-        <a href="#agentes" data-view="agentes" aria-current="page">Escritório</a>
-        <a href="#regras" data-view="regras">Regras de negócio</a>
+        <a href="#agentes" data-view="agentes" aria-current="page"><svg class="icon" aria-hidden="true"><use href="#icon-office"></use></svg>Escritório</a>
+        <a href="#regras" data-view="regras" aria-label="Regras de negócio"><svg class="icon" aria-hidden="true"><use href="#icon-inbox"></use></svg><span class="nav-desktop-label">Regras de negócio</span><span class="nav-mobile-label">Regras</span></a>
       </nav>
     </div>
   </header>
   <main class="wrap">
     <section id="agentes" aria-labelledby="team-title">
-      <div class="intro office-intro">
+      <div class="page-intro">
         <div>
+          <p class="eyebrow">Sala de operações</p>
           <h1 id="team-title">Escritório do Codex</h1>
-          <p>Um andar por projeto. Selecione um agente para ver a atividade no balão.</p>
+          <p class="intro-copy">Veja projetos ativos, sessões observadas e o próximo ponto de atenção.</p>
         </div>
-        <div class="office-actions">
-          <div class="connection" id="connection" role="status">Carregando escritório…</div>
-          <a class="live-office-link" id="live-office-link" href="https://projeto-all-condoconnect.sunnyode3.chatgpt.site/">Abrir painel ao vivo</a>
+        <div class="intro-actions">
+          <a class="live-office-link" id="live-office-link" href="https://projeto-all-condoconnect.sunnyode3.chatgpt.site/">Abrir painel ao vivo <svg class="icon" aria-hidden="true"><use href="#icon-arrow"></use></svg></a>
+          <p id="scope-note" class="scope-note">Aguardando o escopo do monitor.</p>
         </div>
       </div>
-      <div class="workspace">
-        <aside class="elevator" aria-labelledby="floors-title">
-          <h2 id="floors-title">Andares</h2>
-          <div id="floor-list" class="floor-list"></div>
-          <p id="bridge-note" class="bridge-note" hidden>Os agentes e as conversas aparecem no painel ao vivo após o login com sua conta do ChatGPT.</p>
-        </aside>
-        <section class="office" aria-labelledby="map-current">
-          <header class="office-header">
+
+      <div class="workspace-shell">
+        <aside class="side-panel floor-nav" aria-labelledby="floors-title">
+          <div class="side-heading">
             <div>
-              <h2 id="map-current">Andar</h2>
-              <p id="map-meta"></p>
-              <a id="project-repository" class="repo-link" target="_blank" rel="noopener noreferrer" hidden>Ver no GitHub</a>
+              <p class="eyebrow">Navegação</p>
+              <h2 id="floors-title">Andares</h2>
             </div>
-            <div class="office-controls">
-              <label class="team-control">Equipe <select id="team-filter"></select></label>
-              <button id="zoom-office" class="zoom-office" type="button" aria-controls="office-map" aria-pressed="false" hidden>Ampliar sala</button>
+            <span id="floor-count" class="count-badge">0</span>
+          </div>
+          <div id="floor-list" class="floor-list"></div>
+          <div class="side-footer">
+            <p id="bridge-note" class="bridge-note" hidden>O painel ao vivo mostra sessões e conversas após o login com sua conta do ChatGPT.</p>
+            <p class="seat-note"><span class="seat-dot" aria-hidden="true"></span> 9 posições visíveis por andar</p>
+          </div>
+        </aside>
+
+        <section class="office-panel" aria-labelledby="map-current">
+          <header class="office-header">
+            <div class="office-title">
+              <p class="eyebrow">Projeto selecionado</p>
+              <h2 id="map-current">Não informado</h2>
+              <p id="map-meta" class="office-meta">Carregando dados do andar…</p>
+              <div class="project-links">
+                <a id="project-repository" class="repo-link" target="_blank" rel="noopener noreferrer" hidden>Ver repositório no GitHub <svg class="icon" aria-hidden="true"><use href="#icon-arrow"></use></svg></a>
+                <span id="project-state" class="project-state">Não informado</span>
+              </div>
+            </div>
+            <div class="office-controls" aria-label="Controles da sala">
+              <div class="view-switch" role="group" aria-label="Visualização">
+                <button id="view-office" class="view-button" type="button" aria-pressed="true"><svg class="icon" aria-hidden="true"><use href="#icon-office"></use></svg>Sala</button>
+                <button id="view-list" class="view-button" type="button" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#icon-list"></use></svg>Lista</button>
+              </div>
+              <div class="map-controls" role="group" aria-label="Escala do escritório">
+                <button id="map-fit" class="icon-button" type="button" aria-label="Ajustar sala à tela" title="Ajustar à tela"><svg class="icon" aria-hidden="true"><use href="#icon-fit"></use></svg></button>
+                <button id="map-zoom-out" class="icon-button" type="button" aria-label="Reduzir sala" title="Reduzir"><svg class="icon" aria-hidden="true"><use href="#icon-minus"></use></svg></button>
+                <span id="map-zoom-label" class="zoom-label">100%</span>
+                <button id="map-zoom-in" class="icon-button" type="button" aria-label="Ampliar sala" title="Ampliar"><svg class="icon" aria-hidden="true"><use href="#icon-plus"></use></svg></button>
+              </div>
             </div>
           </header>
-          <div class="map-scroll" tabindex="0" aria-label="Mapa do escritório. Quando ampliado, deslize para explorar o andar.">
-            <div class="map" id="office-map">
-              <img class="office-art" src="./office-lobby.png" width="1672" height="941" alt="Sala isométrica em pixel art com nove estações de trabalho e uma área de descanso.">
-              <div id="map-agents"></div>
-            </div>
+
+          <div class="floor-summary" aria-label="Resumo do andar">
+            <div class="summary-card"><span class="summary-label">Sessões observadas</span><strong id="summary-observed">Não informado</strong><span id="summary-observed-note" class="summary-note">Escopo do monitor</span></div>
+            <div class="summary-card"><span class="summary-label">Em andamento</span><strong id="summary-active">Não informado</strong><span class="summary-note">Status atual</span></div>
+            <div class="summary-card"><span class="summary-label">Bloqueadas</span><strong id="summary-blocked">Não informado</strong><span class="summary-note">Sem inferências</span></div>
+            <div class="summary-card summary-card-signal"><span class="summary-label">Último sinal recebido</span><strong id="summary-signal">Não informado</strong><span id="summary-signal-note" class="summary-note">Sincronização</span></div>
           </div>
-          <div id="team-legend" class="team-legend" aria-label="Cores das equipes"></div>
+          <p id="summary-scope" class="summary-scope">Métricas calculadas a partir dos dados disponíveis.</p>
+
+          <div class="office-filters" aria-label="Filtros de sessões">
+            <label class="search-control" for="agent-search"><span>Buscar</span><input id="agent-search" type="search" autocomplete="off" placeholder="Nome ou atividade" /></label>
+            <label class="select-control"><span>Equipe</span><select id="team-filter"><option value="">Todas</option></select></label>
+            <label class="select-control"><span>Estado</span><select id="status-filter"><option value="">Todos</option></select></label>
+            <label class="select-control"><span>Ordenar</span><select id="sort-filter"><option value="recent">Atividade recente</option><option value="name">Nome</option><option value="status">Estado</option></select></label>
+          </div>
+
+          <div id="office-view" class="office-view">
+            <div id="map-scroll" class="map-scroll" tabindex="0" aria-label="Mapa do escritório. Use os controles de escala ou deslize para explorar o andar.">
+              <div class="map" id="office-map">
+                <img class="office-art" src="./office-lobby.png" width="1672" height="941" alt="Sala isométrica em pixel art com nove estações de trabalho e uma área de descanso.">
+                <div id="map-agents"></div>
+              </div>
+            </div>
+            <div class="map-footer"><span id="map-capacity">A sala tem nove posições.</span><span id="map-overflow" hidden></span></div>
+            <div id="team-legend" class="team-legend" aria-label="Cores das equipes"></div>
+          </div>
+
+          <section id="list-view" class="list-view" aria-labelledby="list-title" hidden>
+            <div class="list-heading"><div><h3 id="list-title">Sessões do andar</h3><p id="list-meta">Não informado</p></div><span id="list-source-note" class="list-source-note"></span></div>
+            <div id="agent-list-scroll" class="agent-list-scroll" tabindex="0">
+              <div id="agent-list" class="agent-list"></div>
+            </div>
+          </section>
         </section>
-      </div>
-      <div class="office-details">
-        <section class="detail-panel" aria-labelledby="roster-title">
-          <h2 id="roster-title">Agentes do andar</h2>
-          <div id="roster" class="roster"></div>
-        </section>
-        <section class="detail-panel" aria-labelledby="activity-title">
-          <h2 id="activity-title">Agente selecionado</h2>
+
+        <aside class="inspector-panel" aria-labelledby="inspector-title">
+          <header class="inspector-header">
+            <div><p class="eyebrow">Contexto</p><h2 id="inspector-title">Inspetor da sessão</h2></div>
+            <span id="inspector-source" class="source-badge">Não informado</span>
+          </header>
           <div id="agent-focus" class="agent-focus"></div>
-          <div class="detail-tabs" role="tablist" aria-label="Detalhes do agente">
-            <button class="detail-tab" id="activity-tab" type="button" role="tab" aria-controls="activity-panel" aria-selected="true">Atividade</button>
-            <button class="detail-tab" id="chat-tab" type="button" role="tab" aria-controls="chat-panel" aria-selected="false" tabindex="-1">Conversas</button>
+          <div class="detail-tabs" role="tablist" aria-label="Detalhes da sessão">
+            <button class="detail-tab" id="activity-tab" type="button" role="tab" aria-controls="activity-panel" aria-selected="true"><svg class="icon" aria-hidden="true"><use href="#icon-pulse"></use></svg>Atividade</button>
+            <button class="detail-tab" id="chat-tab" type="button" role="tab" aria-controls="chat-panel" aria-selected="false" tabindex="-1"><svg class="icon" aria-hidden="true"><use href="#icon-chat"></use></svg>Conversas</button>
           </div>
           <div id="activity-panel" role="tabpanel" aria-labelledby="activity-tab" tabindex="0">
+            <div class="panel-heading"><h3>Atividade da sessão</h3><span id="activity-scope">Sessão selecionada</span></div>
             <ul id="live-feed" class="live-feed"></ul>
+            <section class="project-activity" aria-labelledby="project-activity-title">
+              <div class="panel-heading"><h3 id="project-activity-title">Atividade do projeto</h3><span>Git e monitor</span></div>
+              <ul id="project-feed" class="live-feed"></ul>
+            </section>
           </div>
           <div id="chat-panel" role="tabpanel" aria-labelledby="chat-tab" tabindex="0" hidden>
+            <div class="chat-toolbar">
+              <label class="toggle-control"><input id="chat-follow" type="checkbox" checked><span>Acompanhar mensagens novas</span></label>
+              <button id="chat-new" class="new-messages" type="button" hidden>Novas mensagens</button>
+            </div>
             <p id="chat-empty" class="chat-empty"></p>
             <ol id="agent-chat" class="chat-feed"></ol>
           </div>
-        </section>
+          <p id="inspector-note" class="inspector-note">Selecione uma sessão observada para ver os detalhes.</p>
+        </aside>
       </div>
     </section>
+
     <section id="regras" aria-labelledby="rules-title" hidden>
-      <div class="intro">
-        <p class="section-label">CondoConnect</p>
-        <h1 id="rules-title">Regras de negócio</h1>
-        <p>Levantamento do código na revisão <code>f7846b3</code>, com propostas identificadas para a próxima etapa.</p>
+      <div class="page-intro rules-intro">
+        <div>
+          <p class="eyebrow">Catálogo de produto</p>
+          <h1 id="rules-title">Regras de negócio</h1>
+          <p class="intro-copy">Levantamento do código na revisão <code>f7846b3</code>, com propostas identificadas para a próxima etapa.</p>
+        </div>
       </div>
-      <div class="search">
+      <div class="search-panel">
         <label for="rule-search">Buscar no catálogo</label>
         <input id="rule-search" type="search" placeholder="Ex.: morador, chamado, Pix">
       </div>
       <div id="rules"></div>
     </section>
-    <noscript><p>Ative o JavaScript para visualizar o painel e o catálogo.</p></noscript>
+    <noscript><p class="noscript">Ative o JavaScript para visualizar o painel e o catálogo.</p></noscript>
   </main>
   <footer class="foot wrap">PROJETO ALL <span>·</span> Escritório de agentes</footer>
 </body>

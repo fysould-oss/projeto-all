@@ -121,12 +121,15 @@ export function createWorkspaceMonitor() {
   async function locate(cwd) {
     let directory = resolve(cwd);
     try { directory = await realpath(directory); } catch { /* The workspace may have been moved. */ }
+    let available = false;
+    try { available = (await stat(directory)).isDirectory(); } catch { /* A configured project may not exist on this machine. */ }
+    if (!available) return { root: directory, isRepository: false, available: false };
     try {
       const output = await run(directory, ['rev-parse', '--path-format=absolute', '--show-toplevel']);
       const root = output.replace(/\r?\n$/, '');
-      if (isAbsolute(root)) return { root: await realpath(root), isRepository: true };
+      if (isAbsolute(root)) return { root: await realpath(root), isRepository: true, available: true };
     } catch { /* Git can reject workspaces it cannot access. */ }
-    return { root: directory, isRepository: false };
+    return { root: directory, isRepository: false, available: true };
   }
 
   async function scanRepository(root, record) {
@@ -181,7 +184,15 @@ export function createWorkspaceMonitor() {
     return new Map(located.map(([cwd, workspace]) => {
       const { root, isRepository } = workspace;
       const { branch, changes, lastChange } = records.get(root);
-      return [cwd, { root, name: basename(root) || 'Projeto local', branch, changes, lastChangeAt: lastChange ? new Date(lastChange).toISOString() : null, isRepository }];
+      return [cwd, {
+        root,
+        name: basename(root) || 'Projeto local',
+        branch,
+        changes,
+        lastChangeAt: lastChange ? new Date(lastChange).toISOString() : null,
+        isRepository,
+        available: workspace.available === true,
+      }];
     }));
   }
 

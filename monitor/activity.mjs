@@ -28,12 +28,13 @@ function workspaceMetadata(workspace) {
     changes: workspace?.changes ?? null,
     lastChangeAt: workspace?.lastChangeAt ?? null,
     isRepository: workspace?.isRepository ?? false,
+    available: workspace?.available === true,
   };
 }
 
 function pinnedProject({ id, name, remoteUrl }, workspace) {
   return {
-    id, name, remoteUrl, pinned: true, available: Boolean(workspace),
+    id, name, remoteUrl, pinned: true, source: 'local', available: workspace?.available === true,
     ...workspaceMetadata(workspace), updatedAt: null, agents: [],
   };
 }
@@ -43,11 +44,12 @@ function combineCloudProjects(projects, cloudProjects) {
   for (const cloud of cloudProjects) {
     const local = byId.get(pinnedByName.get(cloud.name.trim().toLowerCase()));
     if (!local) {
-      byId.set(cloud.id, cloud);
+      byId.set(cloud.id, { ...cloud, source: 'cloud' });
       continue;
     }
     byId.set(local.id, {
       ...local,
+      source: local.source === 'local' && cloud.source === 'cloud' ? 'mixed' : local.source,
       agents: [...local.agents, ...cloud.agents].sort(latestFirst),
       updatedAt: [local.updatedAt, cloud.updatedAt].filter(Boolean).sort().at(-1) ?? null,
     });
@@ -66,6 +68,7 @@ export function createActivityMonitor() {
   let pending;
   let pendingCloud;
   let closed = false;
+  let lastSignalAt = null;
 
   async function refresh() {
     try {
@@ -78,7 +81,10 @@ export function createActivityMonitor() {
       const byRoot = new Map();
       const projects = pinnedProjects.map(definition => {
         const candidates = definition.cwds.map(cwd => byCwd.get(cwd)).filter(Boolean);
-        const project = pinnedProject(definition, candidates.find(workspace => workspace.isRepository));
+        const repository = candidates.find(workspace => workspace.isRepository);
+        const project = pinnedProject(definition, repository || candidates.find(workspace => workspace.available));
+        project.available = candidates.some(workspace => workspace.available === true);
+        project.isRepository = Boolean(repository);
         for (const workspace of candidates) byRoot.set(normalizeRoot(workspace.root), project);
         return project;
       });
@@ -91,6 +97,8 @@ export function createActivityMonitor() {
           project = {
             id: token(key),
             name: workspace?.name || basename(root) || 'Projeto local',
+            source: 'local',
+            available: workspace?.available !== false,
             ...workspaceMetadata(workspace),
             updatedAt: thread.updatedAt,
             agents: [],
@@ -118,9 +126,11 @@ export function createActivityMonitor() {
           updatedAt: thread.updatedAt,
           events: thread.events,
           chat: thread.chat,
+          source: 'local',
         });
       }
-      snapshot = { status: 'connected', projects };
+      lastSignalAt = new Date().toISOString();
+      snapshot = { status: 'connected', projects, receivedAt: lastSignalAt };
     } catch {
       snapshot = { ...snapshot, status: 'unavailable' };
     }
@@ -139,7 +149,11 @@ export function createActivityMonitor() {
   const timer = setInterval(scheduleRefresh, 2200);
   timer.unref();
   return {
-    getSnapshot: () => ({ ...snapshot, projects: combineCloudProjects(snapshot.projects, cloudProjects) }),
+    getSnapshot: () => ({
+      ...snapshot,
+      receivedAt: lastSignalAt,
+      projects: combineCloudProjects(snapshot.projects, cloudProjects),
+    }),
     close() {
       closed = true;
       clearInterval(timer);

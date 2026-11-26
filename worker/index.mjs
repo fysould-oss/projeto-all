@@ -1,11 +1,15 @@
 const pagesOrigin = 'https://fysould-oss.github.io/projeto-all/';
 const assets = new Set([
   'index.html', 'style.css', 'app.js', 'online.js', 'rules.js',
-  'projects.json', 'progress.json', 'office-lobby.png', 'office-sprites.png', 'office-studio.png',
+  'projects.json', 'progress.json', 'office-lobby.png', 'office-sprites.png',
 ]);
 const maxBytes = 512_000;
 const sessionTimeoutMs = 75_000;
-const headers = { 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' };
+const headers = {
+  'Cache-Control': 'no-store',
+  'X-Content-Type-Options': 'nosniff',
+  'Referrer-Policy': 'no-referrer',
+};
 
 function json(data, status = 200) {
   return Response.json(data, { status, headers });
@@ -35,7 +39,7 @@ async function activity(request, env) {
   const bytes = await request.arrayBuffer();
   if (bytes.byteLength > maxBytes) return json({ error: 'tamanho inválido' }, 413);
   const snapshot = JSON.parse(new TextDecoder().decode(bytes));
-  if (!Array.isArray(snapshot.projects) || snapshot.projects.length > 25
+  if (!snapshot || typeof snapshot !== 'object' || !Array.isArray(snapshot.projects) || snapshot.projects.length > 25
       || snapshot.projects.some(project => !Array.isArray(project.agents) || project.agents.length > 40)) {
     return json({ error: 'formato inválido' }, 400);
   }
@@ -59,7 +63,7 @@ export default {
     if (!assets.has(asset)) return new Response('Página indisponível', { status: 404 });
     if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405 });
     const assetUrl = new URL(asset, pagesOrigin);
-    assetUrl.searchParams.set('v', 'lobby-2');
+    assetUrl.searchParams.set('v', 'lobby-3');
     const response = await fetch(assetUrl, { method: request.method });
     if (!response.ok) return new Response('Publicação do GitHub indisponível', { status: 503 });
     const responseHeaders = new Headers(headers);
