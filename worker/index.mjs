@@ -1,3 +1,18 @@
+import { remoteQueue } from './remote.mjs';
+import { privateTextAssets } from './private-assets.mjs';
+
+const privateTypes = {
+  'index.html': 'text/html; charset=utf-8',
+  'style.css': 'text/css; charset=utf-8',
+  'app.js': 'text/javascript; charset=utf-8',
+  'online.js': 'text/javascript; charset=utf-8',
+  'rules.js': 'text/javascript; charset=utf-8',
+  'projects.json': 'application/json; charset=utf-8',
+  'progress.json': 'application/json; charset=utf-8',
+};
+const privateBundleReady = Object.keys(privateTypes).every(asset => typeof privateTextAssets?.[asset] === 'string');
+const contentPolicy = "default-src 'self'; script-src 'self'; worker-src 'none'; object-src 'none'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'";
+
 const pagesOrigin = 'https://fysould-oss.github.io/projeto-all/';
 const assets = new Set([
   'index.html', 'style.css', 'app.js', 'online.js', 'rules.js',
@@ -51,6 +66,10 @@ async function activity(request, env) {
 export default {
   async fetch(request, env) {
     const path = new URL(request.url).pathname;
+    if (path.startsWith('/api/remote/')) {
+      if (!privateBundleReady) return json({ error: 'Painel privado indisponível.' }, 503);
+      return remoteQueue(request, env);
+    }
     if (path === '/api/activity') {
       try {
         return await activity(request, env);
@@ -62,13 +81,23 @@ export default {
     const asset = path === '/' ? 'index.html' : path.slice(1);
     if (!assets.has(asset)) return new Response('Página indisponível', { status: 404 });
     if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405 });
+    if (Object.hasOwn(privateTypes, asset)) {
+      if (privateBundleReady) {
+        return new Response(request.method === 'HEAD' ? null : privateTextAssets[asset], { headers: {
+          ...headers, 'Content-Type': privateTypes[asset], 'Content-Security-Policy': contentPolicy,
+        } });
+      }
+      if (env.OFFICE_OWNER_TOKEN || env.OFFICE_DEVICE_TOKEN) return json({ error: 'Painel privado indisponível.' }, 503);
+    }
     const assetUrl = new URL(asset, pagesOrigin);
     assetUrl.searchParams.set('v', 'office-living-3');
     const response = await fetch(assetUrl, { method: request.method });
     if (!response.ok) return new Response('Publicação do GitHub indisponível', { status: 503 });
     const responseHeaders = new Headers(headers);
     responseHeaders.set('Content-Type', response.headers.get('content-type') || 'application/octet-stream');
-    responseHeaders.set('Content-Security-Policy', "default-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'");
+    responseHeaders.set('Content-Security-Policy', contentPolicy);
+    if (asset.endsWith('.webp')) responseHeaders.set('Content-Type', 'image/webp');
+    if (asset.endsWith('.png')) responseHeaders.set('Content-Type', 'image/png');
     return new Response(response.body, { headers: responseHeaders });
   },
 };

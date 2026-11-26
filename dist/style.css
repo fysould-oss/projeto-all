@@ -382,6 +382,10 @@ nav a[aria-current="page"] { border-color: #506747; background: var(--accent-sof
 .floor-number { width: 22px; height: 22px; border: 1px solid var(--line); border-radius: 2px; background: #25394e; color: var(--cyan); }
 .floor-label strong { font-size: .75rem; }
 .floor-label .floor-activity { display: none; }
+.local-queue { margin-bottom: 10px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-soft); }
+.local-queue summary { cursor: pointer; font-weight: 650; }
+.local-queue ul { display: grid; gap: 5px; margin: 10px 0 0; padding: 0; list-style: none; font-size: .85rem; color: var(--muted); }
+.local-queue li strong { color: var(--text); overflow-wrap: anywhere; }
 .floor-nav { align-items: flex-start; background: #101729; padding: 12px; }
 .floor-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr)); gap: 6px; }
 .floor-button { min-height: 54px; align-items: flex-start; padding: 8px; background: #131e31; }
@@ -620,4 +624,3 @@ nav a[aria-current="page"] { border-color: #506747; background: var(--accent-sof
 }
 .remote-office textarea { margin: .45rem 0; resize: vertical; }
 .remote-office button { min-height: 2.5rem; }
-

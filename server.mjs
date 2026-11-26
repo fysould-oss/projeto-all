@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { createActivityMonitor } from './monitor/activity.mjs';
 import { startOnlineRelay } from './monitor/relay.mjs';
 import { readRelayCredential } from './monitor/credential.mjs';
+import { startRemoteMonitor } from './monitor/remote.mjs';
 
 const assets = new Map([
   ['/index.html', 'text/html; charset=utf-8'],
@@ -19,7 +20,9 @@ const assets = new Map([
 ]);
 const port = Number(process.env.PAINEL_PORT || 4173);
 const activity = createActivityMonitor();
-const closeRelay = startOnlineRelay(activity.getSnapshot, await readRelayCredential());
+const credential = await readRelayCredential();
+const closeRelay = startOnlineRelay(activity.getSnapshot, credential);
+const closeRemoteMonitor = startRemoteMonitor(credential);
 const headers = {
   'Cache-Control': 'no-store',
   'X-Content-Type-Options': 'nosniff',
@@ -38,14 +41,20 @@ const server = createServer(async (request, response) => {
     return;
   }
   const pathname = request.url.split('?')[0];
-  if (pathname === '/api/activity') {
+  if (pathname === '/api/activity' || pathname === '/api/local-tasks') {
     if (request.headers['sec-fetch-site'] === 'cross-site'
         || (request.headers.origin && request.headers.origin !== 'http://' + request.headers.host)) {
       response.writeHead(403, headers).end();
       return;
     }
-    response.writeHead(200, { ...headers, 'Content-Type': 'application/json; charset=utf-8' });
-    response.end(request.method === 'HEAD' ? undefined : JSON.stringify(activity.getSnapshot()));
+    try {
+      const data = pathname === '/api/activity' ? activity.getSnapshot()
+        : { jobs: (await import('./monitor/coordinator.mjs')).recentJobs() };
+      response.writeHead(200, { ...headers, 'Content-Type': 'application/json; charset=utf-8' });
+      response.end(request.method === 'HEAD' ? undefined : JSON.stringify(data));
+    } catch {
+      response.writeHead(503, headers).end();
+    }
     return;
   }
   const path = pathname === '/' ? '/index.html' : pathname;
@@ -66,6 +75,7 @@ const server = createServer(async (request, response) => {
   console.log('Painel disponível em http://127.0.0.1:' + port);
 });
 server.on('close', () => {
+  closeRemoteMonitor();
   closeRelay();
   activity.close();
 });

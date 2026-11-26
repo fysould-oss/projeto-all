@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, isAbsolute, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { remoteSettings, isRemoteEligible } from './remote.mjs';
 import { createCodexReader } from './codex.mjs';
 import { createCloudReader } from './cloud.mjs';
 import { createWorkspaceMonitor } from './git.mjs';
@@ -58,6 +59,7 @@ function combineCloudProjects(projects, cloudProjects) {
 }
 
 export function createActivityMonitor() {
+  const remote = remoteSettings();
   const reader = createCodexReader({
     codexHome: process.env.PROJETO_ALL_CODEX_HOME || process.env.CODEX_HOME || join(homedir(), '.codex'),
   });
@@ -117,6 +119,8 @@ export function createActivityMonitor() {
           : 'Codex ' + token(thread.id).slice(0, 4);
         project.agents.push({
           id: token(thread.id),
+          remoteEligible: isRemoteEligible(thread, remote),
+            remoteWorktreeEligible: isRemoteEligible(thread, remote) && remote.editable.has(thread.id),
           name,
           teamId: roleId === 'coordenacao' ? 'produto' : roleId ?? null,
           ...(roleId ? { roleId } : {}),
