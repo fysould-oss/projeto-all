@@ -46,6 +46,18 @@ O estado `disponivel` sinaliza um posto livre e permite omitir tarefa e atividad
 
 O catálogo fica em dist/rules.js e descreve o comportamento observado no commit f7846b3. Cada regra aponta para o código de origem. As propostas aparecem identificadas.
 
+## Aplicativo Android
+
+O aplicativo Android abre o escritório privado ao vivo, preserva o login no celular e usa a mesma sincronização do painel web. O APK atual é gerado pelo GitHub Actions como artefato de teste:
+
+1. Abra o [build do APK no GitHub Actions](https://github.com/fysould-oss/projeto-all/actions/runs/45751841241).
+2. Entre no GitHub, se for solicitado, e abra a seção **Artifacts**.
+3. Baixe `projeto-all-debug-apk.zip`, extraia o arquivo e abra `app-debug.apk` no Android.
+4. Autorize a instalação de aplicativos desconhecidos quando o sistema solicitar.
+5. Abra o aplicativo e entre com a conta autorizada do ChatGPT.
+
+O computador que possui as sessões do Codex deve continuar ligado com `node server.mjs` em execução. O APK é uma build debug para instalação direta e não contém credenciais.
+
 ## Arte do escritório
 
 Arte original gerada com ImageGen e salva em dist/office-lobby.png e dist/office-sprites.png. Os prompts de produção seguem abaixo.
