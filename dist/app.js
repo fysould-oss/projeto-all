@@ -327,8 +327,9 @@ function seatMarker(agent, selected, preview) {
   seat.append(button);
   if (selected || preview) {
     const speech = element('div', selected ? 'speech' : 'speech speech-preview');
-    if (selected) speech.append(element('strong', '', agent.name));
-    speech.append(element('span', '', agentActivity(agent)));
+    speech.append(element('strong', '', agent.name));
+    speech.append(element('span', 'speech-status ' + status, statusLabels[status]));
+    if (selected) speech.append(element('span', 'speech-activity', agentActivity(agent)));
     seat.append(speech);
     if (selected) seat.classList.add('selected');
   }
