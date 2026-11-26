@@ -553,6 +553,7 @@ function renderSummary(floor) {
 }
 
 function renderAgentFocus(agent, floor) {
+  window.selectRemoteSession?.(latest.status === 'connected' && !floor.archive ? agent : null);
   board['agent-focus'].replaceChildren();
   if (!agent) {
     board['agent-focus'].append(element('p', 'empty-state', filters.team || filters.status || filters.search

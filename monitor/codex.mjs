@@ -112,6 +112,7 @@ function initialState(meta, timestamp, mtimeMs, offset) {
 function update(state, at, activity, status) {
   const thread = state.thread;
   if (status) thread.status = status;
+  if (status && status !== 'concluido') thread.turnCompleted = false;
   const previous = thread.events.at(-1);
   thread.activity = activity;
   thread.updatedAt = at;
@@ -197,6 +198,7 @@ function applyEvent(state, payload, at) {
       break;
     case 'task_complete':
     case 'turn_completed':
+      state.thread.turnCompleted = true;
       state.calls.clear();
       update(state, at, 'Turno concluído', 'concluido');
       break;
@@ -325,6 +327,7 @@ export function createCodexReader({ codexHome, maxDays = 7 }) {
         const thread = state.thread;
         if (!result.has(thread.id) || result.get(thread.id).updatedAt < thread.updatedAt) {
           const view = structuredClone(thread);
+          view.archived = path.relative(codexHome, filename).split(path.sep)[0] === 'archived_sessions';
           if (view.status === 'em-andamento' && now - Date.parse(view.updatedAt) > NO_SIGNAL_DELAY) {
             view.status = 'sem-sinal';
           }

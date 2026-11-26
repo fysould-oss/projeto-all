@@ -522,6 +522,15 @@ nav a[aria-current="page"] { border-color: #506747; background: var(--accent-sof
 .inspector-header h2 { color: var(--amber); font-size: 1rem; }
 .detail-tabs { margin-top: 4px; }
 .agent-row-main strong, .agent-task, .chat-text, .live-feed li { font-size: .875rem; }
+.agent-row-main strong, .agent-row-activity strong {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
+}
+.agent-row-activity strong { font-size: .875rem; }
+.agent-row time { font-size: .75rem; font-variant-numeric: tabular-nums; }
+.agent-row:focus-visible { outline-offset: -3px; }
+.chat-text, .live-feed li span { line-height: 1.55; }
 
 @media (min-width: 760px) {
   .inspector-panel { max-width: none; }
@@ -546,6 +555,8 @@ nav a[aria-current="page"] { border-color: #506747; background: var(--accent-sof
 }
 
 @media (max-width: 640px) {
+  .agent-row { grid-template-columns: minmax(0, 1fr); }
+  .agent-row-meta { grid-column: 1; grid-row: 3; justify-content: flex-start; }
   .office-panel { display: flex; flex-direction: column; }
   .scene-stage { display: contents; }
   .office-view { order: 1; }
@@ -565,3 +576,29 @@ nav a[aria-current="page"] { border-color: #506747; background: var(--accent-sof
   .console-toolbar { gap: 8px; padding-inline: 8px; }
   .team-legend span { font-size: .72rem; }
 }
+.remote-office:not([hidden]) {
+  display: grid;
+  gap: .55rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid #384659;
+  border-radius: .75rem;
+  background: #131c28;
+  color: #eef2f7;
+}
+.remote-office h3, .remote-office p { margin: 0; overflow-wrap: anywhere; }
+.remote-office p:empty { display: none; }
+.remote-office input, .remote-office textarea {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  padding: .6rem;
+  border: 1px solid #607186;
+  border-radius: .4rem;
+  background: #0d1520;
+  color: inherit;
+  font: inherit;
+}
+.remote-office textarea { margin: .45rem 0; resize: vertical; }
+.remote-office button { min-height: 2.5rem; }
