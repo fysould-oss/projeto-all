@@ -1,18 +1,29 @@
 [
   {
+    "id": "6ante-app",
+    "name": "6ante-app",
+    "delivery": { "date": "2026-11-26", "summary": "Adaptador Desktop aplicado localmente.", "reference": "45e0e3f" },
+    "remoteUrl": "https://github.com/fysould-oss/6ante-app",
+    "directories": ["6ante-app"]
+  },
+  {
     "id": "sisc",
     "name": "sisc",
+    "delivery": { "date": "2026-11-26", "summary": "Interface do aplicativo Android pendente de valida��o." },
     "directories": ["sisc"]
   },
   {
     "id": "sisc-test",
     "name": "sisc-test",
+    "delivery": { "date": "2026-11-26", "summary": "Gest�o de contas testada na branch administrativa local.", "reference": "ce35b94 � 092dc75" },
     "directories": ["sisc-test"]
   },
   {
     "id": "projeto-all",
     "name": "projeto-all",
+    "delivery": { "date": "2026-11-26", "summary": "Leitura de sess�es integrada no PR #6. Controle remoto em rascunho no PR #7." },
     "remoteUrl": "https://github.com/fysould-oss/projeto-all",
     "directories": ["PROJETO ALL", "projeto-all"]
   }
 ]
+
