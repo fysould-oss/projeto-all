@@ -63,7 +63,7 @@ export default {
     if (!assets.has(asset)) return new Response('Página indisponível', { status: 404 });
     if (!['GET', 'HEAD'].includes(request.method)) return new Response(null, { status: 405 });
     const assetUrl = new URL(asset, pagesOrigin);
-    assetUrl.searchParams.set('v', 'office-floor-2');
+    assetUrl.searchParams.set('v', 'office-living-3');
     const response = await fetch(assetUrl, { method: request.method });
     if (!response.ok) return new Response('Publicação do GitHub indisponível', { status: 503 });
     const responseHeaders = new Headers(headers);
