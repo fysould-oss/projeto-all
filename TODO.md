@@ -2,7 +2,7 @@
 
 ## 1. Inventário e linha de base
 
-- [ ] Registrar capturas e métricas do escritório original em desktop e celular.
+- [x] Registrar capturas e métricas do escritório original em desktop e celular.
 - [x] Revisar Android, Worker, monitor, catálogo e PRs #7, #9 e #10. O #10 integra os pilotos de execução em worktree e é a referência para integração futura.
 
 ## 2. Primeira entrega local
@@ -31,4 +31,5 @@
 - [ ] Implementar Kanban, grafo, agentes, painéis, widgets, temas e presets.
 - [ ] Compartilhar tokens com a interface do WebView e preservar acessibilidade.
 - [ ] Validar fluxos reais em desktop, tablet, ultrawide e Android, inclusive perda de conexão e recuperação.
+- [x] Registrar bytes e tempos de transfer?ncias HTTP do escrit?rio e da central.
 - [ ] Medir carregamento, interação, CPU, RAM, tamanho dos recursos e latência. Documentar instalação e publicação.

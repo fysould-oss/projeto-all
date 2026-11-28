@@ -1,0 +1,15 @@
+{
+  "capturedAt": "2026-11-28T05:30:08.718Z",
+  "server": "http://127.0.0.1:4187/",
+  "entrypoint": "/command.html",
+  "serverType": "isolated local command service",
+  "browser": "Google Chrome 158.0.8127.37 headless",
+  "viewport": {"desktop": "1440x1100", "mobile": "390x844"},
+  "totalSequentialMs": 120.5,
+  "assets": [
+    {"asset":"command.html","status":200,"bytes":8663,"ms":103.5},
+    {"asset":"command.css","status":200,"bytes":14798,"ms":6.9},
+    {"asset":"command.js","status":200,"bytes":12063,"ms":4.4},
+    {"asset":"index.html","status":200,"bytes":13450,"ms":4.6}
+  ]
+}
