@@ -347,7 +347,7 @@ export async function createStore(path) {
     return { project: next.projects.find(item => item.id === objective.projectId), runIds };
   }
 
-  async function mutate(action, data = {}) {
+  async function mutate(action, data = {}, readReview) {
     if (!ACTIONS.has(action) && !APPROVAL_ACTIONS.has(action) && !INDEX_ACTIONS.has(action)) throw new TypeError('Ação desconhecida.');
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new TypeError('Dados da ação inválidos.');
     const next = clone(state);
@@ -415,6 +415,20 @@ export async function createStore(path) {
         throw new Error('Aguarde o resultado do executor Codex antes de alterar o estado.');
       }
       if (!STATES.has(data.state)) throw new TypeError('Estado de tarefa inválido.');
+      if (data.state === 'done' && task.executor?.status === 'done' && task.state !== 'done') {
+        if (!readReview || task.state !== 'review' || typeof data.reviewRevision !== 'string') {
+          throw new Error('Abra e revise as alterações da execução Codex antes de concluir.');
+        }
+        const project = next.projects.find(item => item.id === objective?.projectId);
+        const reviewed = project && await readReview(task.executor.id, project);
+        if (!reviewed || !reviewed.revision || reviewed.revision !== data.reviewRevision) {
+          throw new Error('As alterações mudaram. Abra e revise o diff atualizado.');
+        }
+        if (reviewed.untracked?.length && data.confirmUntracked !== true) {
+          throw new Error('Confirme a revisão dos arquivos não rastreados na worktree.');
+        }
+        task.executor.reviewedRevision = reviewed.revision;
+      }
       if (data.state === 'running') {
         if (objective?.status === 'paused') throw new Error('Retome o objetivo antes de iniciar tarefas.');
         if (task.dependencies.some(dependency => next.tasks.find(item => item.id === dependency)?.state !== 'done')) {
@@ -444,8 +458,14 @@ export async function createStore(path) {
       const project = state.projects.find(item => item.id === approval?.projectId);
       return project && clone({ project, prepared: approval.prepared });
     },
-    mutate(action, data) {
-      return serialize(() => mutate(action, data));
+    mutate(action, data, readReview) {
+      return serialize(() => mutate(action, data, readReview));
+    },
+    executorReviewContext(id) {
+      const task = state.tasks.find(item => item.id === id && item.state === 'review' && item.executor?.status === 'done');
+      const objective = task && state.objectives.find(item => item.id === task.objectiveId);
+      const project = objective && state.projects.find(item => item.id === objective.projectId);
+      return project && clone({ jobId: task.executor.id, project });
     },
     beginTaskCheck(data, checks, scheduled = false) { return serialize(() => beginTaskCheck(data, checks, scheduled)); },
     finishTaskCheck(taskId, run) { return serialize(() => finishTaskCheck(taskId, run)); },

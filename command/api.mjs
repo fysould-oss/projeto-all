@@ -7,6 +7,7 @@ import { listRemotes } from './push.mjs';
 import { objectiveGraph } from './graph.mjs';
 import { readCoordinatorJobs } from './coordinator-status.mjs';
 import { prepareCoordinatorDispatch } from './coordinator-dispatch.mjs';
+import { readCoordinatorReview } from './coordinator-review.mjs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
@@ -40,6 +41,7 @@ export function createCommandApi(file, getActivity, {
   let executorTimer;
   let synchronizing;
   const dispatchEnabled = typeof executorModule === 'string' && isAbsolute(executorModule);
+  const readReview = (id, project) => readCoordinatorReview(coordinatorDirectory, id, project);
   const open = () => store ??= createStore(file).catch(error => {
     store = undefined;
     throw error;
@@ -180,7 +182,7 @@ export function createCommandApi(file, getActivity, {
           send(response, headers, 200, { run });
           return;
         }
-        const result = await database.mutate(action, data);
+        const result = await database.mutate(action, data, readReview);
         send(response, headers, 200, ['git.stage', 'git.unstage'].includes(action) ? result : database.snapshot());
         if (action === 'task.state') scheduleDrain();
       } catch (error) {
@@ -190,8 +192,22 @@ export function createCommandApi(file, getActivity, {
       return;
     }
     const kind = url.searchParams.get('view');
-    if (!kind || ['graph', 'coordinator-jobs'].includes(kind)) await synchronizeExecutor(database);
+    if (!kind || ['graph', 'coordinator-jobs', 'executor-review'].includes(kind)) await synchronizeExecutor(database);
     const snapshot = database.snapshot();
+    if (kind === 'executor-review') {
+      const context = database.executorReviewContext(url.searchParams.get('task'));
+      if (!context) {
+        send(response, headers, 404, { error: 'Nenhuma execução Codex disponível para revisão.' });
+        return;
+      }
+      try {
+        const review = await readReview(context.jobId, context.project);
+        send(response, headers, 200, review);
+      } catch {
+        send(response, headers, 422, { error: 'A worktree de revisão está indisponível ou excede o limite de leitura.' });
+      }
+      return;
+    }
     if (kind === 'coordinator-jobs') {
       const result = await readCoordinatorJobs(coordinatorDirectory);
       send(response, headers, 200, { ...result, dispatchEnabled });

@@ -40,6 +40,7 @@ let revision;
 let loading = false;
 let approvalsSignature;
 let previewReloadTimer;
+const reviewStates = new Map();
 let graphRequest = 0;
 let graphObjective = '';
 let graphRevision;
@@ -244,6 +245,14 @@ function renderTasks() {
     item.append(select);
     if (check) item.append(checkInfo(check));
     if (task.executor) item.append(executorInfo(task.executor));
+    if (task.state === 'review' && task.executor?.status === 'done') {
+      const review = element('button', 'Revisar alterações', 'button button-quiet');
+      review.type = 'button';
+      review.dataset.taskReview = task.id;
+      item.append(review);
+      const reviewed = reviewStates.get(task.id);
+      if (reviewed) appendReview(item, task, reviewed);
+    } else reviewStates.delete(task.id);
     const canSchedule = ['pending', 'failed'].includes(task.state);
     if (!canSchedule) return item;
     const checkControls = element('div', undefined, 'task-check-controls');
@@ -553,6 +562,27 @@ function executorInfo(executor) {
     'Executor Codex: ' + (executorLabels[executor.status] || 'Estado indisponível'),
     executor.id, executor.files != null && executor.files + ' arquivo(s) observado(s)',
   ].filter(Boolean).join(' · '), 'task-executor-info');
+}
+
+function appendReview(item, task, review) {
+  const output = element('pre', review.output || 'Nenhuma diferença rastreada.', 'task-review-output');
+  item.append(output);
+  if (review.files?.length) item.append(element('p', 'Arquivos: ' + review.files.join(', '), 'task-review-files'));
+  const done = element('button', 'Marcar concluída', 'button button-quiet');
+  done.type = 'button';
+  done.dataset.reviewDone = task.id;
+  done.dataset.reviewRevision = review.revision || '';
+  if (review.untracked?.length) {
+    const label = element('label', 'Confirmei os arquivos não rastreados na worktree.');
+    const confirm = element('input');
+    confirm.type = 'checkbox';
+    confirm.dataset.reviewUntracked = '';
+    done.disabled = true;
+    confirm.addEventListener('change', () => { done.disabled = !confirm.checked; });
+    label.prepend(confirm);
+    item.append(element('p', 'Não rastreados: ' + review.untracked.join(', '), 'task-review-files'), label);
+  }
+  item.append(done);
 }
 
 function showGraphNode(id) {
@@ -878,6 +908,28 @@ document.addEventListener('click', event => {
 });
 
 document.addEventListener('click', async event => {
+  const reviewButton = event.target.closest('[data-task-review]');
+  if (reviewButton) {
+    reviewButton.disabled = true;
+    try {
+      const query = new URLSearchParams({ view: 'executor-review', task: reviewButton.dataset.taskReview });
+      const result = await request('?' + query);
+      reviewStates.set(reviewButton.dataset.taskReview, result);
+      renderTasks();
+    } catch (error) { reviewButton.replaceWith(element('p', error.message, 'task-review-error')); }
+    return;
+  }
+  const doneButton = event.target.closest('[data-review-done]');
+  if (doneButton) {
+    doneButton.disabled = true;
+    const row = doneButton.closest('.record-row');
+    await mutate('task.state', {
+      id: doneButton.dataset.reviewDone, state: 'done', reviewRevision: doneButton.dataset.reviewRevision,
+      confirmUntracked: row?.querySelector('[data-review-untracked]')?.checked === true,
+    });
+    doneButton.disabled = false;
+    return;
+  }
   const dispatch = event.target.closest('[data-task-dispatch]');
   if (dispatch) {
     const task = state.tasks.find(item => item.id === dispatch.dataset.taskDispatch);
