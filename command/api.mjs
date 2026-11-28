@@ -3,7 +3,7 @@ import { inspectProject, resources } from './inspect.mjs';
 import { draftPlan } from './plan.mjs';
 import { createChecks } from './checks.mjs';
 import { inspectChangedPath, inspectRecentCommit, listCommittedPaths, listFiles, listRecentCommits, readCommittedText } from './index.mjs';
-import { githubPullRequests, listBranches, listRemotes, listTagsAndStashes } from './push.mjs';
+import { githubDeployments, githubPullRequests, listBranches, listRemotes, listTagsAndStashes } from './push.mjs';
 import { objectiveGraph } from './graph.mjs';
 import { readCoordinatorJobs } from './coordinator-status.mjs';
 import { prepareCoordinatorDispatch } from './coordinator-dispatch.mjs';
@@ -240,7 +240,7 @@ export function createCommandApi(file, getActivity, {
       return;
     }
     if (['files', 'file-diff', 'recent-commits', 'commit-diff', 'remotes', 'branches', 'saved-refs',
-      'committed-paths', 'committed-text', 'github-pulls'].includes(kind)) {
+      'committed-paths', 'committed-text', 'github-pulls', 'github-deployments'].includes(kind)) {
       const project = snapshot.projects.find(entry => entry.id === url.searchParams.get('project'));
       if (!project) {
         send(response, headers, 404, { error: 'Projeto não encontrado.' });
@@ -248,6 +248,7 @@ export function createCommandApi(file, getActivity, {
       }
       try {
         const result = kind === 'github-pulls' ? await githubPullRequests(project)
+          : kind === 'github-deployments' ? await githubDeployments(project, url.searchParams.get('repository'), url.searchParams.get('sha'))
           : kind === 'branches' ? await listBranches(project)
           : kind === 'saved-refs' ? await listTagsAndStashes(project)
           : kind === 'file-diff' ? await inspectChangedPath(project, url.searchParams.get('path'), url.searchParams.get('mode'))

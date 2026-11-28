@@ -46,6 +46,7 @@
 - [x] Mostrar também o status combinado e os contextos públicos de CI externo para o mesmo commit.
 - [x] Resumir revisões públicas de PR por commit, incluindo pedidos de alterações e decisões anteriores.
 - [x] Listar execuções públicas do GitHub Actions para o commit e abrir o diff hospedado do PR.
+- [x] Consultar deploys públicos e seus estados pelo commit de cada PR.
 - [x] Consultar branches locais, branch ativa, HEAD destacado e relação com o upstream conhecido localmente.
 - [x] Consultar tags e metadados dos stashes locais.
 - [x] Localizar caminhos no último commit do projeto com filtro e paginação vinculada à árvore Git.

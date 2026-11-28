@@ -1026,7 +1026,7 @@ async function request(query = '', init) {
   let action;
   try { action = init?.body && JSON.parse(init.body).action; } catch {}
   const timeout = ['approval.requestPush', 'approval.approve'].includes(action) ? 70000
-    : query.includes('view=github-pulls') ? 15000 : 8000;
+    : /view=github-(pulls|deployments)/.test(query) ? 15000 : 8000;
   const response = await fetch(endpoint + query, { signal: AbortSignal.timeout(timeout), ...init });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error);
@@ -1556,6 +1556,32 @@ document.addEventListener('click', async event => {
           const summary = items.filter(([count]) => count).map(([count, label]) => count + ' ' + label).join(', ');
           output.append('\n  Revisões: ' + (summary || 'nenhuma decisão ou comentário reportado')
             + (reviews.partial ? ' · Consulta parcial' : '') + '.');
+        }
+        if (pull.sha) {
+          const deployButton = element('button', 'Consultar deploys deste commit', 'button button-quiet');
+          deployButton.type = 'button';
+          const deployStatus = element('span');
+          deployStatus.setAttribute('role', 'status');
+          deployButton.addEventListener('click', async () => {
+            deployButton.disabled = true;
+            deployStatus.textContent = '\n  Consultando deploys…';
+            const query = new URLSearchParams({ view: 'github-deployments', project, repository: repository.name, sha: pull.sha });
+            try {
+              const result = await request('?' + query);
+              const states = { queued: 'na fila', pending: 'pendente', in_progress: 'em execução',
+                success: 'publicado', failure: 'falhou', error: 'erro', inactive: 'inativo',
+                unreported: 'sem status reportado', unavailable: 'status indisponível', unknown: 'estado desconhecido' };
+              const rows = result.deployments.map(item =>
+                '  ' + (item.environment || 'Ambiente sem nome') + ' · #' + item.id + ' · ' + (states[item.state] ?? states.unknown));
+              deployStatus.textContent = rows.length ? '\n' + rows.join('\n')
+                + (result.partial ? '\n  Mostrando até cinco deploys.' : '') : '\n  Sem deploys públicos reportados para este commit.';
+            } catch (error) {
+              deployStatus.textContent = '\n  ' + error.message;
+            } finally {
+              deployButton.disabled = false;
+            }
+          });
+          output.append('\n  ', deployButton, deployStatus);
         }
       }
     } else {

@@ -6,7 +6,22 @@ import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { preparePush, executePush, githubCompareUrl, githubRepository, listBranches, listTagsAndStashes, summarizeGitHubChecks, summarizeGitHubStatuses,
-  summarizeGitHubReviews, summarizeGitHubWorkflows } from './push.mjs';
+  summarizeGitHubReviews, summarizeGitHubWorkflows, summarizeGitHubDeployments, githubDeploymentState } from './push.mjs';
+
+test('projects public deploys for the exact commit and classifies their latest reported states', () => {
+  const sha = 'a'.repeat(40);
+  assert.equal(summarizeGitHubDeployments(null, sha), null);
+  const row = (id, commit = sha) => ({ id, sha: commit, environment: 'production', environment_url: 'https://example.invalid/token' });
+  assert.deepEqual(summarizeGitHubDeployments([row(1), row(2, 'b'.repeat(40)), row(-1)], sha), {
+    deployments: [{ id: 1, environment: 'production' }], partial: false,
+  });
+  assert.equal(summarizeGitHubDeployments([1, 2, 3, 4, 5, 6].map(id => row(id)), sha).partial, true);
+  assert.equal(githubDeploymentState(null), 'unavailable');
+  assert.equal(githubDeploymentState([]), 'unreported');
+  assert.equal(githubDeploymentState([{ id: 1, created_at: '2026-11-01T00:00:00Z', state: 'success' },
+    { id: 3, created_at: '2026-11-02T00:00:00Z', state: 'inactive' },
+    { id: 2, created_at: '2026-11-02T00:00:00Z', state: 'pending' }]), 'inactive');
+});
 
 test('builds a GitHub PR comparison with encoded refs and handles the default branch', () => {
   const repo = 'https://github.com/owner/repo';

@@ -219,10 +219,10 @@ export function summarizeGitHubWorkflows(payload, sha) {
   return { total: payload.total_count, runs, partial: runs.length !== payload.total_count };
 }
 
-export async function githubPullRequests(project) {
+async function githubBranchContext(project) {
   const cwd = await repository(project);
   const branch = (await git(cwd, ['branch', '--show-current'])).trim();
-  if (!branch) return { branch, repositories: [] };
+  if (!branch) return { branch };
   const trackingInfo = await git(cwd, ['for-each-ref', '--format=%(upstream:remotename)%00%(upstream:remoteref)', '--', 'refs/heads/' + branch]);
   const [tracking, remoteRef = ''] = trackingInfo.trimEnd().split('\0');
   const remotesFound = await remotes(cwd);
@@ -231,6 +231,58 @@ export async function githubPullRequests(project) {
     || (remotesFound.length === 1 && !remotesFound[0].startsWith('-') ? remotesFound[0] : '');
   const remoteUrl = remote && (await git(cwd, ['remote', 'get-url', remote])).trim();
   const target = githubRepository(remoteUrl);
+  if (!target) return { branch };
+  return { cwd, branch, tracking, remoteRef, remote, target };
+}
+
+export function summarizeGitHubDeployments(payload, sha) {
+  if (!Array.isArray(payload)) return null;
+  return {
+    deployments: payload.slice(0, 5)
+      .filter(item => item?.sha === sha && Number.isSafeInteger(item.id) && item.id > 0)
+      .map(item => ({
+        id: item.id,
+        environment: typeof item.environment === 'string' ? item.environment.slice(0, 100) : '',
+      })),
+    partial: payload.length > 5,
+  };
+}
+
+export function githubDeploymentState(statuses) {
+  if (!Array.isArray(statuses)) return 'unavailable';
+  if (!statuses.length) return 'unreported';
+  const latest = statuses.reduce((result, item) => {
+    if (!Number.isSafeInteger(item?.id) || !Number.isFinite(Date.parse(item.created_at))) return result;
+    if (!result || Date.parse(item.created_at) > Date.parse(result.created_at)) return item;
+    return item.created_at === result.created_at && item.id > result.id ? item : result;
+  }, null);
+  return ['error', 'failure', 'inactive', 'in_progress', 'queued', 'pending', 'success'].includes(latest?.state)
+    ? latest.state : 'unknown';
+}
+
+export async function githubDeployments(project, expectedRepo, sha) {
+  if (typeof sha !== 'string' || !/^[a-f0-9]{40}$/.test(sha)) throw new Error('O commit do deploy é inválido.');
+  const { target } = await githubBranchContext(project);
+  if (!target || target.owner + '/' + target.repo !== expectedRepo) {
+    throw new Error('O remoto GitHub mudou. Atualize a consulta de PRs.');
+  }
+  const url = new URL('/repos/' + expectedRepo + '/deployments', 'https://api.github.com');
+  url.search = new URLSearchParams({ sha, per_page: '6' });
+  const rows = await fetchGitHubJson(url).catch(() => null);
+  const summary = summarizeGitHubDeployments(rows, sha);
+  if (!summary) throw new Error('A consulta pública de deploys está indisponível.');
+  const deployments = await Promise.all(summary.deployments.map(async deployment => {
+    const statusUrl = new URL(url);
+    statusUrl.pathname += '/' + deployment.id + '/statuses';
+    statusUrl.search = 'per_page=20';
+    const statuses = await fetchGitHubJson(statusUrl).catch(() => null);
+    return { ...deployment, state: githubDeploymentState(statuses) };
+  }));
+  return { sha, deployments, partial: summary.partial };
+}
+
+export async function githubPullRequests(project) {
+  const { cwd, branch, tracking, remoteRef, remote, target } = await githubBranchContext(project);
   if (!target) return { branch, repositories: [] };
   const base = 'https://github.com/' + target.owner + '/' + target.repo;
   const head = remote === tracking && remoteRef.startsWith(refPrefix) ? remoteRef.slice(refPrefix.length) : branch;
