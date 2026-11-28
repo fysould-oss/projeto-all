@@ -296,6 +296,12 @@ button,input,select {
   color:var(--faint);
   font-size:10px;
 }
+.stat-card.is-wide { grid-column: span 2; }
+.stats-grid:empty { display: none; }
+.widget-settings { min-inline-size: 0; margin-top: .75rem; border: 1px solid var(--line); border-radius: var(--radius); }
+.widget-setting { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; margin-block: .35rem; }
+.widget-setting label:first-child { flex: 1 1 11rem; }
+.widget-setting .button { min-inline-size: 2rem; }
 .content-grid {
   display:grid;
   grid-template-columns:minmax(0,1.6fr) minmax(270px,1fr);

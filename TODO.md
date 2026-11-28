@@ -48,6 +48,7 @@
 
 - [ ] Implementar Kanban, grafo, agentes, painéis, widgets, temas e presets.
 - [x] Persistir tema, densidade e tamanho do texto, com exportação, importação e restauração dos padrões.
+- [x] Exibir, ocultar, redimensionar e reordenar os indicadores do resumo operacional, com persistência local.
 - [x] Visualizar o grafo de dependências do objetivo com estados, prontidão e detalhes navegáveis de cada tarefa.
 - [ ] Compartilhar tokens com a interface do WebView e preservar acessibilidade.
 - [ ] Validar fluxos reais em desktop, tablet, ultrawide e Android, inclusive perda de conexão e recuperação.

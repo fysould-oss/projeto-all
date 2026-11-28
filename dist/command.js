@@ -821,15 +821,24 @@ function renderMetrics() {
   const { observed, resources } = state;
   if (observed) {
     setText('activity-meta', ({ connected: 'Monitor conectado', starting: 'Monitor iniciando', unavailable: 'Monitor indisponível' })[observed.status] || observed.status);
-    const stats = [['Projetos', state.projects.length], ['Objetivos', state.objectives.length],
-      ['Tarefas em execução', state.tasks.filter(task => task.state === 'running').length], ['Sessões observadas', observed.sessions]];
+    const values = {
+      projects: state.projects.length,
+      objectives: state.objectives.length,
+      running: state.tasks.filter(task => task.state === 'running').length,
+      sessions: observed.sessions,
+      checks: resources?.activeChecks ?? '—',
+      cpu: Number.isFinite(resources?.cpuPercent) ? resources.cpuPercent.toFixed(1) + '%' : '—',
+    };
+    const stats = displayWidgets.filter(widget => widget.visible).map(({ id, wide }) => [id, values[id], wide]);
     const signature = JSON.stringify(stats);
     const overview = byId('overview-stats');
     if (overview.dataset.signature !== signature) {
       overview.dataset.signature = signature;
-      overview.replaceChildren(...stats.map(([title, value]) => {
+      overview.replaceChildren(...stats.map(([id, value, wide]) => {
         const card = element('article', undefined, 'stat-card');
-        card.append(element('span', title), element('strong', value));
+        card.dataset.widget = id;
+        card.classList.toggle('is-wide', wide);
+        card.append(element('span', widgetTitles[id]), element('strong', value));
         return card;
       }));
     }
@@ -1354,6 +1363,67 @@ window.addEventListener('hashchange', highlightSection);
 highlightSection();
 configureCoordinatorJobsPolling();
 const displayKey = 'projeto-all.display';
+const widgetTitles = {
+  projects: 'Projetos', objectives: 'Objetivos', running: 'Tarefas em execução',
+  sessions: 'Sessões observadas', checks: 'Verificações ativas', cpu: 'CPU do host',
+};
+const defaultWidgets = Object.keys(widgetTitles).map((id, index) => ({ id, visible: index < 4, wide: false }));
+let displayWidgets = [];
+function normalizeWidgets(widgets) {
+  if (!Array.isArray(widgets)) return null;
+  const seen = new Set();
+  for (const widget of widgets) {
+    if (typeof widget?.id !== 'string' || !Object.hasOwn(widgetTitles, widget.id) || seen.has(widget.id)
+      || typeof widget.visible !== 'boolean' || typeof widget.wide !== 'boolean') return null;
+    seen.add(widget.id);
+  }
+  return [...widgets, ...defaultWidgets.filter(widget => !seen.has(widget.id))];
+}
+function renderWidgetSettings() {
+  const settings = byId('widget-settings-list');
+  settings.replaceChildren(...displayWidgets.map((widget, index) => {
+    const title = widgetTitles[widget.id];
+    const row = element('div', undefined, 'widget-setting');
+    const checkbox = (field, labelText) => {
+      const label = element('label');
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = widget[field];
+      if (field === 'wide') input.setAttribute('aria-label', 'Aumentar largura de ' + title);
+      input.addEventListener('change', () => {
+        widget[field] = input.checked;
+        saveDisplay();
+        renderMetrics();
+      });
+      label.append(input, ' ' + labelText);
+      return label;
+    };
+    row.append(checkbox('visible', title), checkbox('wide', 'Largo'));
+    for (const [direction, symbol, label] of [[-1, '↑', 'Subir'], [1, '↓', 'Descer']]) {
+      const button = element('button', symbol, 'button button-quiet');
+      button.type = 'button';
+      button.setAttribute('aria-label', label + ' ' + title);
+      const target = index + direction;
+      button.disabled = target < 0 || target >= displayWidgets.length;
+      button.addEventListener('click', () => {
+        [displayWidgets[index], displayWidgets[target]] = [displayWidgets[target], widget];
+        saveDisplay();
+        renderWidgetSettings();
+        renderMetrics();
+        const buttons = settings.children[target].querySelectorAll('button');
+        const sameDirection = buttons[direction === -1 ? 0 : 1];
+        (sameDirection.disabled ? buttons[direction === -1 ? 1 : 0] : sameDirection).focus();
+      });
+      row.append(button);
+    }
+    return row;
+  }));
+}
+function applyWidgetSettings(values) {
+  displayWidgets = (normalizeWidgets(values?.widgets) ?? defaultWidgets)
+    .map(({ id, visible, wide }) => ({ id, visible, wide }));
+  renderWidgetSettings();
+}
 const displayControls = ['theme', 'density', 'fontSize'].map(key => [key, byId(key)]);
 const displayDefaults = Object.fromEntries(displayControls.map(([key, control]) => [key, control.value]));
 const validDisplayValue = (control, value) => Array.from(control.options).some(option => option.value === value);
@@ -1364,7 +1434,7 @@ function applyDisplay(values) {
   }
 }
 function displaySnapshot() {
-  return Object.fromEntries(displayControls.map(([key, control]) => [key, control.value]));
+  return { ...Object.fromEntries(displayControls.map(([key, control]) => [key, control.value])), widgets: displayWidgets };
 }
 function saveDisplay(message = 'Preferências salvas neste navegador.') {
   applyDisplay(displaySnapshot());
@@ -1377,15 +1447,22 @@ function saveDisplay(message = 'Preferências salvas neste navegador.') {
 }
 try {
   const stored = localStorage.getItem(displayKey);
-  applyDisplay(stored ? JSON.parse(stored) : {
+  const values = stored ? JSON.parse(stored) : {
     theme: localStorage.getItem('projeto-all.theme'),
     density: localStorage.getItem('projeto-all.density'),
-  });
-} catch { applyDisplay(displayDefaults); }
+  };
+  applyDisplay(values);
+  applyWidgetSettings(values);
+} catch {
+  applyDisplay(displayDefaults);
+  applyWidgetSettings();
+}
 for (const [, control] of displayControls) control.addEventListener('change', () => saveDisplay());
 byId('display-reset').addEventListener('click', () => {
   applyDisplay(displayDefaults);
+  applyWidgetSettings();
   saveDisplay('Preferências padrão restauradas.');
+  renderMetrics();
 });
 byId('display-export').addEventListener('click', () => {
   const file = new Blob([JSON.stringify({ version: 1, ...displaySnapshot() }, null, 2)], { type: 'application/json' });
@@ -1404,11 +1481,14 @@ byId('display-import').addEventListener('change', async event => {
   try {
     if (file.size > 4096) throw new Error();
     const values = JSON.parse(await file.text());
-    if (values?.version !== 1 || !displayControls.every(([key, control]) => validDisplayValue(control, values[key]))) {
+    if (values?.version !== 1 || !displayControls.every(([key, control]) => validDisplayValue(control, values[key]))
+      || ('widgets' in values && !normalizeWidgets(values.widgets))) {
       throw new Error();
     }
     applyDisplay(values);
+    applyWidgetSettings(values);
     saveDisplay('Preferências importadas.');
+    renderMetrics();
   } catch {
     setText('display-feedback', 'Arquivo inválido. Selecione um JSON exportado pelas preferências.');
   }
