@@ -5,7 +5,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { preparePush, executePush, githubRepository } from './push.mjs';
+import { preparePush, executePush, githubRepository, summarizeGitHubChecks } from './push.mjs';
+
+test('summarizes check runs and distinguishes empty, partial, and unavailable results', () => {
+  assert.equal(summarizeGitHubChecks(null), null);
+  assert.equal(summarizeGitHubChecks({ total_count: 0, check_runs: [] }).partial, false);
+  const check_runs = [
+    { status: 'completed', conclusion: 'success' }, { status: 'in_progress' },
+    { status: 'completed', conclusion: 'timed_out' }, { status: 'completed', conclusion: 'skipped' },
+    { status: 'completed', conclusion: 'cancelled' },
+  ];
+  assert.deepEqual(summarizeGitHubChecks({ total_count: 6, check_runs }), {
+    total: 6, pending: 1, passed: 1, skipped: 1, failed: 1, other: 1, partial: true,
+  });
+});
 
 test('projects canonical GitHub remotes without credentials or redirects', () => {
   for (const url of ['https://github.com/owner/repo.git', 'ssh://git@github.com/owner/repo', 'git@github.com:owner/repo.git']) {

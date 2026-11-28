@@ -41,6 +41,7 @@
 - [x] Listar e preparar mudanças por arquivo, retirar mudanças do índice e aprovar o commit da árvore preparada.
 - [x] Publicar a branch atual mediante aprovação que vincula o destino e os commits local e remoto.
 - [x] Consultar PRs abertos da branch ativa em remotos GitHub públicos, com link para a busca autenticada no navegador.
+- [x] Exibir o resumo de check runs públicos do commit de cada PR e o link para os detalhes no GitHub.
 - [ ] Validar previews, captura visual e observabilidade por projeto.
 - [x] Abrir aplicações locais em quadro isolado, com URL por projeto e dimensões ajustáveis.
 - [ ] Integrar o controle móvel ao transporte privado autenticado.

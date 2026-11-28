@@ -884,7 +884,8 @@ function renderObservability(resources) {
 async function request(query = '', init) {
   let action;
   try { action = init?.body && JSON.parse(init.body).action; } catch {}
-  const timeout = ['approval.requestPush', 'approval.approve'].includes(action) ? 70000 : 8000;
+  const timeout = ['approval.requestPush', 'approval.approve'].includes(action) ? 70000
+    : query.includes('view=github-pulls') ? 15000 : 8000;
   const response = await fetch(endpoint + query, { signal: AbortSignal.timeout(timeout), ...init });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error);
@@ -1318,7 +1319,20 @@ document.addEventListener('click', async event => {
         : '\nConsulta pública indisponível. Abra a busca no GitHub para consultar com sua sessão.';
       output.replaceChildren(repository.name + ' · ' + result.branch + ' · ' + repository.remote + '\n',
         linkTo('Buscar PRs da branch no GitHub', repository.url), summary);
-      for (const pull of repository.pulls) output.append('\n', linkTo('PR #' + pull.number + (pull.draft ? ' · Rascunho' : ''), pull.url));
+      for (const pull of repository.pulls) {
+        output.append('\n', linkTo('PR #' + pull.number + (pull.draft ? ' · Rascunho' : ''), pull.url));
+        const checks = pull.checks;
+        if (pull.sha) output.append(' · ' + pull.sha.slice(0, 7));
+        if (!checks) output.append(' · Checks indisponíveis');
+        else if (!checks.total) output.append(' · Sem checks reportados');
+        else {
+          const statuses = [[checks.passed, 'aprovados'], [checks.pending, 'pendentes'], [checks.failed, 'com falha'],
+            [checks.skipped, 'neutros ou ignorados'], [checks.other, 'outros resultados']];
+          const summary = statuses.filter(([count]) => count).map(([count, label]) => count + ' ' + label).join(', ');
+          output.append(' · ' + checks.total + ' checks' + (checks.partial ? ' (parcial)' : '') + (summary ? ' · ' + summary : ''));
+        }
+        output.append(' · ', linkTo('Ver checks', pull.url + '/checks'));
+      }
     } else {
       output.textContent = result.output || (result.passed ? 'Nenhum problema de espaço em branco nas alterações rastreadas.' : 'Nenhuma alteração rastreada.');
     }

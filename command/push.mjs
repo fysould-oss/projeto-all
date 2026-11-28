@@ -101,6 +101,27 @@ export function githubRepository(remote) {
   return repo && repo !== '.' && repo !== '..' ? { owner, repo } : null;
 }
 
+async function fetchGitHubJson(url) {
+  const response = await fetch(url, {
+    redirect: 'error', signal: AbortSignal.timeout(4000),
+    headers: { Accept: 'application/vnd.github+json' },
+  });
+  return response.ok ? response.json() : null;
+}
+
+export function summarizeGitHubChecks(payload) {
+  if (!Number.isSafeInteger(payload?.total_count) || payload.total_count < 0 || !Array.isArray(payload.check_runs)) return null;
+  const checks = { total: payload.total_count, pending: 0, passed: 0, skipped: 0, failed: 0, other: 0 };
+  for (const run of payload.check_runs) {
+    if (run?.status !== 'completed') checks.pending += 1;
+    else if (run.conclusion === 'success') checks.passed += 1;
+    else if (['neutral', 'skipped'].includes(run.conclusion)) checks.skipped += 1;
+    else if (['failure', 'timed_out', 'action_required', 'startup_failure', 'stale'].includes(run.conclusion)) checks.failed += 1;
+    else checks.other += 1;
+  }
+  return { ...checks, partial: payload.check_runs.length !== checks.total };
+}
+
 export async function githubPullRequests(project) {
   const cwd = await repository(project);
   const branch = (await git(cwd, ['branch', '--show-current'])).trim();
@@ -119,14 +140,25 @@ export async function githubPullRequests(project) {
   api.search = new URLSearchParams({ state: 'open', head: target.owner + ':' + branch, per_page: '20' });
   const entry = { remote, name: target.owner + '/' + target.repo, url: base + '/pulls?' + search, pulls: [], available: false };
   try {
-    const response = await fetch(api, { redirect: 'error', signal: AbortSignal.timeout(4000), headers: { Accept: 'application/vnd.github+json' } });
-    if (response.ok) {
-      const pulls = await response.json();
-      if (Array.isArray(pulls)) {
-        entry.available = true;
-        entry.pulls = pulls.slice(0, 20).filter(pull => Number.isSafeInteger(pull?.number) && pull.number > 0)
-          .map(pull => ({ number: pull.number, draft: pull.draft === true, url: base + '/pull/' + pull.number }));
-      }
+    const pulls = await fetchGitHubJson(api);
+    if (Array.isArray(pulls)) {
+      entry.available = true;
+      const safePulls = pulls.slice(0, 20).filter(pull => Number.isSafeInteger(pull?.number) && pull.number > 0);
+      const shaFor = pull => /^[a-f0-9]{40}$/.test(pull.head?.sha ?? '') ? pull.head.sha : '';
+      const shas = [...new Set(safePulls.map(shaFor).filter(Boolean))].slice(0, 4);
+      const results = await Promise.all(shas.map(async sha => {
+        const url = new URL(api);
+        url.pathname = url.pathname.replace(/\/pulls$/, '/commits/' + sha + '/check-runs');
+        url.search = 'filter=latest&per_page=100';
+        try { return [sha, summarizeGitHubChecks(await fetchGitHubJson(url))]; }
+        catch { return [sha, null]; }
+      }));
+      const checks = new Map(results);
+      entry.pulls = safePulls.map(pull => {
+        const sha = shaFor(pull);
+        return { number: pull.number, draft: pull.draft === true, url: base + '/pull/' + pull.number,
+          sha, checks: checks.get(sha) ?? null };
+      });
     }
   } catch {}
   return { branch, repositories: [entry] };
