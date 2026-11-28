@@ -67,7 +67,11 @@ const server = createServer(async (request, response) => {
   }
   try {
     const content = await readFile(new URL('./dist' + path, import.meta.url));
-    response.writeHead(200, { ...headers, 'Content-Type': contentType });
+    const assetHeaders = path === '/command.html' ? {
+      ...headers,
+      'Content-Security-Policy': headers['Content-Security-Policy'] + '; frame-src http://127.0.0.1:* http://localhost:*',
+    } : headers;
+    response.writeHead(200, { ...assetHeaders, 'Content-Type': contentType });
     response.end(request.method === 'HEAD' ? undefined : content);
   } catch (error) {
     console.error('Falha ao servir um arquivo do painel.', error.code);

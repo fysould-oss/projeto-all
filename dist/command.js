@@ -18,11 +18,13 @@ const actionLabels = {
   'approval.completed': 'Commit registrado',
   'approval.failed': 'Falha ao tentar o commit',
   'approval.interrupted': 'Execução interrompida',
+  'preview.save': 'Preview salvo',
 };
-let state = { projects: [], objectives: [], tasks: [], audit: [], approvals: [] };
+let state = { projects: [], objectives: [], tasks: [], audit: [], approvals: [], previews: [] };
 let revision;
 let loading = false;
 let approvalsSignature;
+let previewReloadTimer;
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -82,6 +84,7 @@ function render() {
   setText('coordinator-status', 'Rascunhos de plano e acompanhamento');
   prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff completo'], ['staged', 'Ver diff preparado']]);
   renderApprovals();
+  renderPreviewPanel();
   prepareGit('quality-list', [['check', 'Verificar alterações']]);
   fill('coordinator-detail', state.objectives, objective => {
     const tasks = state.tasks.filter(task => task.objectiveId === objective.id);
@@ -274,6 +277,53 @@ function renderApprovals() {
   }, 'Nenhuma aprovação registrada.');
 }
 
+let activePreviewUrl;
+const previewSizes = { desktop: [1280, 720], tablet: [768, 1024], mobile: [390, 844] };
+
+function savedPreviewUrl() {
+  const projectId = byId('preview-project').value;
+  return state.previews?.find(preview => preview.projectId === projectId)?.url || '';
+}
+
+function renderPreviewPanel() {
+  options(byId('preview-project'), state.projects, project => project.name, 'Selecione um projeto');
+}
+
+function applyPreviewSize() {
+  const frame = byId('preview-frame');
+  for (const side of ['width', 'height']) {
+    const input = byId('preview-' + side);
+    input.value = Math.min(2400, Math.max(240, Math.round(input.valueAsNumber) || 240));
+    frame.style[side] = input.value + 'px';
+  }
+}
+
+function configurePreviewReload() {
+  clearInterval(previewReloadTimer);
+  const seconds = Number(byId('preview-autoreload').value);
+  if (!activePreviewUrl || ![5, 15, 30].includes(seconds)) return;
+  previewReloadTimer = setInterval(() => {
+    if (!document.hidden && activePreviewUrl) byId('preview-frame').src = activePreviewUrl;
+  }, seconds * 1000);
+}
+
+function showPreview(url) {
+  activePreviewUrl = url;
+  const frame = byId('preview-frame');
+  frame.hidden = !url;
+  frame.parentElement.hidden = !url;
+  if (url) {
+    applyPreviewSize();
+    frame.src = url;
+  } else {
+    frame.removeAttribute('src');
+  }
+  for (const action of ['reload', 'stop']) {
+    byId('previews').querySelector('[data-preview-' + action + ']').disabled = !url;
+  }
+  configurePreviewReload();
+}
+
 function updateApprovalFields() {
   const push = byId('approval-kind').value === 'git.push';
   const message = byId('approval-message');
@@ -444,7 +494,7 @@ async function refresh() {
 }
 
 async function mutate(action, data) {
-  const feedback = action.startsWith('approval.') ? 'approval-feedback' : 'form-feedback';
+  const feedback = action.startsWith('approval.') ? 'approval-feedback' : action === 'preview.save' ? 'preview-feedback' : 'form-feedback';
   setText(feedback, 'Salvando…');
   try {
     update(await request('', {
@@ -503,6 +553,21 @@ document.addEventListener('change', async event => {
   }
   if (input.id === 'approval-project' && byId('approval-kind').value === 'git.push') refreshApprovalRemotes(input.value);
   if (input.id === 'approval-kind') updateApprovalFields();
+  if (input.id === 'preview-viewport') {
+    const size = previewSizes[input.value];
+    if (size) [byId('preview-width').value, byId('preview-height').value] = size;
+    applyPreviewSize();
+  }
+  if (input.id === 'preview-width' || input.id === 'preview-height') {
+    byId('preview-viewport').value = 'custom';
+    applyPreviewSize();
+  }
+  if (input.id === 'preview-autoreload') configurePreviewReload();
+  if (input.id === 'preview-project') {
+    showPreview();
+    byId('preview-url').value = savedPreviewUrl();
+    setText('preview-feedback', savedPreviewUrl() ? 'Endereço salvo neste projeto.' : 'Salve o endereço local do projeto para abrir o preview.');
+  }
   if (input.name === 'objectiveId') activeDependencies();
   if (!input.dataset.task) return;
   input.disabled = true;
@@ -513,6 +578,43 @@ document.addEventListener('change', async event => {
 });
 
 document.addEventListener('click', async event => {
+  const previewButton = event.target.closest('#previews button');
+  if (previewButton) {
+    const url = savedPreviewUrl();
+    if (previewButton.matches('[data-preview-save]')) {
+      const projectId = byId('preview-project').value;
+      const input = byId('preview-url');
+      if (!projectId || !input.value || !input.checkValidity()) {
+        setText('preview-feedback', 'Informe um projeto e uma URL HTTP local válida.');
+        return;
+      }
+      previewButton.disabled = true;
+      const saved = await mutate('preview.save', { projectId, url: input.value });
+      if (saved && byId('preview-project').value === projectId) input.value = savedPreviewUrl();
+      previewButton.disabled = false;
+    } else if (previewButton.matches('[data-preview-start], [data-preview-open]')) {
+      if (!url || url !== byId('preview-url').value) {
+        setText('preview-feedback', 'Salve o endereço do projeto antes de abrir.');
+        return;
+      }
+      if (previewButton.matches('[data-preview-open]')) window.open(url, '_blank', 'noopener,noreferrer');
+      else {
+        showPreview(url);
+        setText('preview-feedback', 'Endereço aberto no quadro.');
+      }
+    } else if (previewButton.matches('[data-preview-stop]')) {
+      showPreview();
+      setText('preview-feedback', 'Preview parado.');
+    } else if (previewButton.matches('[data-preview-reload]') && activePreviewUrl) {
+      byId('preview-frame').src = activePreviewUrl;
+    } else if (previewButton.matches('[data-preview-rotate]')) {
+      const width = byId('preview-width'), height = byId('preview-height');
+      [width.value, height.value] = [height.value, width.value];
+      byId('preview-viewport').value = 'custom';
+      applyPreviewSize();
+    }
+    return;
+  }
   const indexButton = event.target.closest('[data-git-index-action]');
   if (indexButton) {
     const action = 'git.' + indexButton.dataset.gitIndexAction;
@@ -668,3 +770,4 @@ await refresh();
 setInterval(refresh, 5000);
 document.addEventListener('visibilitychange', refresh);
 window.addEventListener('online', refresh);
+window.addEventListener('pagehide', () => clearInterval(previewReloadTimer));

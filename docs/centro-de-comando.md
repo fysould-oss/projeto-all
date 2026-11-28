@@ -22,6 +22,8 @@ Para publicar uma branch, selecione um remoto já configurado e solicite **Push*
 
 Em Qualidade, selecione um projeto confiável com `package.json` para executar scripts declarados de lint, teste, build ou verificação de tipos. Os scripts usam as dependências e a configuração desse projeto. A seção mostra o estado, a duração e a saída limitada e permite interromper a execução. O histórico de execuções fica na memória do servidor local durante esta etapa.
 
+Em Previews, selecione um projeto e salve o endereço de uma aplicação já em execução no mesmo computador do navegador. Use HTTP com `localhost` ou `127.0.0.1` e uma porta entre 1024 e 65535. A central guarda um endereço por projeto e só abre a aplicação quando você inicia o preview. Os controles ajustam as dimensões do quadro para desktop, tablet, celular ou tamanho personalizado. É possível girar, recarregar, programar recarga enquanto a aba está visível e parar. A abertura em nova aba atende aplicações que bloqueiam incorporação por CSP ou X-Frame-Options.
+
 ## Arquitetura
 
 O painel anterior usa HTML, CSS e JavaScript sem framework. O monitor Node acompanha as sessões locais, a listagem Codex Cloud e Git. O relay envia snapshots ao Worker privado, que usa D1. O APK abre o endereço privado em WebView.
@@ -33,7 +35,7 @@ O fluxo atual é projeto → objetivo → tarefas → dependências → mudança
 ## Testar e empacotar
 
 ```powershell
-node --test command/api.test.mjs command/plan.test.mjs command/checks.test.mjs command/commit.test.mjs command/index.test.mjs command/push.test.mjs
+node --test command/api.test.mjs command/plan.test.mjs command/checks.test.mjs command/commit.test.mjs command/index.test.mjs command/push.test.mjs command/previews.test.mjs
 node scripts/build-worker.mjs
 git diff --check
 ```

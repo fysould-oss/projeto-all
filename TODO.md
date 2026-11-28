@@ -29,6 +29,7 @@
 - [x] Listar e preparar mudanças por arquivo, retirar mudanças do índice e aprovar o commit da árvore preparada.
 - [x] Publicar a branch atual mediante aprovação que vincula o destino e os commits local e remoto.
 - [ ] Validar previews, captura visual e observabilidade por projeto.
+- [x] Abrir aplicações locais em quadro isolado, com URL por projeto e dimensões ajustáveis.
 - [ ] Integrar o controle móvel ao transporte privado autenticado.
 
 ## 5. Interface e verificação

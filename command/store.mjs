@@ -6,9 +6,10 @@ import { draftPlan } from './plan.mjs';
 import { prepareCommit, executeCommit } from './commit.mjs';
 import { changeIndex } from './index.mjs';
 import { preparePush, executePush } from './push.mjs';
+import { normalizePreviewUrl } from './previews.mjs';
 
 const STATES = new Set(['pending', 'running', 'blocked', 'review', 'done', 'failed', 'cancelled']);
-const ACTIONS = new Set(['project.create', 'objective.create', 'objective.plan', 'task.create', 'task.state']);
+const ACTIONS = new Set(['project.create', 'objective.create', 'objective.plan', 'task.create', 'task.state', 'preview.save']);
 const APPROVAL_ACTIONS = new Set(['approval.request', 'approval.requestPush', 'approval.edit', 'approval.approve', 'approval.reject']);
 const INDEX_ACTIONS = new Set(['git.stage', 'git.unstage']);
 const APPROVAL_TTL_MS = 15 * 60 * 1000;
@@ -22,7 +23,7 @@ const text = (value, label) => {
 const id = value => typeof value === 'string' && value.length > 0 ? value : null;
 
 function emptySnapshot() {
-  return { version: 1, projects: [], objectives: [], tasks: [], approvals: [], audit: [] };
+  return { version: 1, projects: [], objectives: [], tasks: [], approvals: [], previews: [], audit: [] };
 }
 
 function expired(approval) {
@@ -76,6 +77,16 @@ export async function createStore(path) {
   }
 
   state.approvals ??= [];
+  state.previews ??= [];
+  if (!Array.isArray(state.previews)) throw new TypeError('invalid previews snapshot');
+  state.previews = state.previews.flatMap(preview => {
+    if (!state.projects.some(project => project.id === preview?.projectId)) return [];
+    try {
+      return [{ ...preview, url: normalizePreviewUrl(preview.url) }];
+    } catch {
+      return [];
+    }
+  });
   if (!Array.isArray(state.approvals)) throw new TypeError('invalid approvals snapshot');
   const interrupted = state.approvals.filter(approval => approval.state === 'executing');
   for (const approval of interrupted) {
@@ -168,6 +179,12 @@ export async function createStore(path) {
       const path = await projectDirectory(data.path);
       result = { id: randomUUID(), name, path, createdAt: timestamp };
       next.projects.push(result);
+    } else if (action === 'preview.save') {
+      const project = next.projects.find(item => item.id === data.projectId);
+      if (!project) throw new Error('Projeto não encontrado.');
+      result = { id: project.id, projectId: project.id, url: normalizePreviewUrl(data.url), updatedAt: timestamp };
+      next.previews = next.previews.filter(item => item.projectId !== project.id);
+      next.previews.push(result);
     } else if (action === 'objective.create') {
       const projectId = id(data.projectId);
       if (!projectId || !next.projects.some(item => item.id === projectId)) throw new Error('Projeto não encontrado.');

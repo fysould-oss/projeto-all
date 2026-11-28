@@ -291,3 +291,34 @@ test('discloses and updates only the approved branch on a configured remote', as
   assert.equal(completed.commit, head);
   assert.doesNotMatch(JSON.stringify(audit), /Reviewed destination/);
 });
+
+test('persists one local preview per project without copying the URL to audit', async t => {
+  const folder = await mkdtemp(join(tmpdir(), 'projeto-all-preview-'));
+  const file = join(folder, 'command.json');
+  const activity = () => ({ status: 'ready', projects: [] });
+  let handler = createCommandApi(file, activity);
+  const server = createServer((request, response) => handler(request, response, {}));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => {
+    await handler.close();
+    await new Promise(resolve => server.close(resolve));
+    await rm(folder, { recursive: true, force: true });
+  });
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  const post = (action, data) => fetch(origin, {
+    method: 'POST', headers: { origin, 'content-type': 'application/json' },
+    body: JSON.stringify({ action, data }),
+  });
+  const { projects: [project] } = await (await post('project.create', { name: 'Preview fixture', path: folder })).json();
+  const projectId = project.id;
+  assert.equal((await post('preview.save', { projectId: 'missing', url: 'http://localhost:3000/' })).status, 400);
+  assert.equal((await post('preview.save', { projectId, url: 'https://example.invalid/' })).status, 400);
+  assert.equal((await post('preview.save', { projectId, url: 'http://localhost:3000/' })).status, 200);
+  const url = 'http://127.0.0.1:8080/screen?fixture=1';
+  assert.equal((await post('preview.save', { projectId, url })).status, 200);
+  await handler.close();
+  handler = createCommandApi(file, activity);
+  const { previews, audit } = await (await fetch(origin)).json();
+  assert.deepEqual(previews.map(preview => [preview.projectId, preview.url]), [[projectId, url]]);
+  assert.doesNotMatch(JSON.stringify(audit), /localhost|127\.0\.0\.1|fixture=1/);
+});
