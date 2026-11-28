@@ -1155,7 +1155,8 @@ async function refreshChecks() {
     const query = new URLSearchParams({ view: 'checks', project });
     const { scripts, runs } = await request('?' + query);
     if (sequence !== checksRequest) return;
-    const signature = JSON.stringify([project, scripts, runs]);
+    const taskTitles = new Map(state.tasks.map(task => [task.id, task.title]));
+    const signature = JSON.stringify([project, scripts, runs, runs.map(run => taskTitles.get(run.taskId))]);
     const available = scripts.map(script => ({ id: script }));
     if (checksSignature !== signature) {
       checksSignature = signature;
@@ -1171,6 +1172,11 @@ async function refreshChecks() {
         const status = checkLabels[run.status] || run.status;
         const item = row(run.script, [status, duration].filter(Boolean).join(' · '));
         item.dataset.checkResult = run.status;
+        if (taskTitles.has(run.taskId)) {
+          const link = element('a', 'Ver tarefa: ' + taskTitles.get(run.taskId));
+          link.href = '#task-' + run.taskId;
+          item.append(link);
+        }
         if (run.output) {
           const previous = logs.get(run.id);
           const log = checkLog(run, previous);

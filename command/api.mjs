@@ -290,7 +290,14 @@ export function createCommandApi(file, getActivity, {
       }
       try {
         const runs = new Map(database.checkHistory(project.id).map(run => [run.id, run]));
-        for (const run of checks.list(project)) runs.set(run.id, run);
+        const objectives = new Set(snapshot.objectives.filter(objective => objective.projectId === project.id).map(objective => objective.id));
+        const linkedTasks = new Map(snapshot.tasks.filter(task => task.check?.id && objectives.has(task.objectiveId))
+          .map(task => [task.check.id, task.id]));
+        for (const run of checks.list(project)) runs.set(run.id, { ...runs.get(run.id), ...run });
+        for (const [id, taskId] of linkedTasks) {
+          const run = runs.get(id);
+          if (run && !run.taskId) run.taskId = taskId;
+        }
         const recent = [...runs.values()].sort((left, right) => (right.startedAt || '').localeCompare(left.startedAt || ''));
         send(response, headers, 200, { scripts: await checks.available(project), runs: recent });
       } catch {

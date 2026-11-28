@@ -13,6 +13,7 @@
 - [x] Mostrar PID, projeto e tempo de execução das verificações ativas com interrupção por execução.
 - [x] Filtrar linhas da saída de verificações e preservar a busca enquanto chegam novas linhas.
 - [x] Filtrar o histórico de verificações por estado, mantendo o filtro durante as atualizações.
+- [x] Vincular resultados de verificações às tarefas de origem no histórico, inclusive após reexecução.
 - [ ] Preservar escritório, catálogo, APK e publicação existentes.
 - [ ] Verificar persistência, dependências, restrições de origem e responsividade.
 

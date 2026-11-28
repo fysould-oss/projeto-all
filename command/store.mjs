@@ -274,7 +274,7 @@ export async function createStore(path) {
     }
     task.updatedAt = now();
     const projectId = next.objectives.find(item => item.id === task.objectiveId)?.projectId;
-    if (projectId) next.checkHistory = mergeCheckHistory(next.checkHistory, projectId, run);
+    if (projectId) next.checkHistory = mergeCheckHistory(next.checkHistory, projectId, { ...run, taskId });
     await save(next, 'task.check.' + run.status, {}, task);
   }
 

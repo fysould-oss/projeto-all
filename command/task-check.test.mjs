@@ -14,7 +14,8 @@ test('task.check gates dependencies and persists npm completion metadata', async
     scripts: { test: 'node -e "process.exit(0)"', lint: 'node -e "process.exit(1)"' },
   }));
   const db = join(folder, 'command.json');
-  const handler = createCommandApi(db, () => ({ status: 'ready', projects: [] }));
+  const activity = () => ({ status: 'ready', projects: [] });
+  let handler = createCommandApi(db, activity);
   const server = createServer((request, response) => handler(request, response, {}));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(() => new Promise(resolve => { handler.close(); server.close(resolve); }));
@@ -61,4 +62,14 @@ test('task.check gates dependencies and persists npm completion metadata', async
   assert.equal(failed.state, 'failed');
   assert.equal(failed.check.script, 'lint');
   assert.ok(failed.check.status);
+  const retry = await post('task.check', { id: second.id, script: 'test' });
+  assert.equal(retry.response.status, 200, JSON.stringify(retry.body));
+  const retried = await waitTask(second.id);
+  assert.equal(retried.state, 'done');
+  await handler.close();
+  handler = createCommandApi(db, activity);
+  const { runs } = await (await fetch(origin + '/?view=checks&project=' + project.id)).json();
+  assert.equal(runs.find(run => run.id === failed.check.id).taskId, second.id);
+  assert.equal(runs.find(run => run.id === retried.check.id).taskId, second.id);
+  assert.ok(runs.every(run => !Object.hasOwn(run, 'output')));
 });
