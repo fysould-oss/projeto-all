@@ -49,6 +49,7 @@
 - [x] Consultar tags e metadados dos stashes locais.
 - [x] Localizar caminhos no último commit do projeto com filtro e paginação vinculada à árvore Git.
 - [x] Abrir arquivos de texto do commit na central, com limite de tamanho e vínculo à revisão listada.
+- [x] Consultar separadamente o diff preparado e o não preparado de um caminho alterado.
 - [ ] Validar previews, captura visual e observabilidade por projeto.
 - [x] Abrir aplicações locais em quadro isolado, com URL por projeto e dimensões ajustáveis.
 - [ ] Integrar o controle móvel ao transporte privado autenticado.

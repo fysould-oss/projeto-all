@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { listFiles, changeIndex, listCommittedPaths, readCommittedText } from './index.mjs';
+import { listFiles, changeIndex, inspectChangedPath, listCommittedPaths, readCommittedText } from './index.mjs';
 
 function run(cwd, args) {
   return new Promise((resolve, reject) => {
@@ -69,6 +69,26 @@ test('reads only bounded regular UTF-8 blobs from the selected Git tree', async 
   await run(dir, ['add', '--all']);
   await run(dir, ['commit', '-m', 'new tree']);
   await assert.rejects(() => read('tracked.txt'), /HEAD mudou/);
+});
+
+test('reads separate staged and unstaged diffs for a listed literal path', async t => {
+  const dir = await fixture(t);
+  const path = '- diff ü.txt';
+  await writeFile(join(dir, path), 'base\n');
+  await run(dir, ['add', '--', path]);
+  await run(dir, ['commit', '-m', 'literal']);
+  await writeFile(join(dir, path), 'staged version\n');
+  await run(dir, ['add', '--', path]);
+  await writeFile(join(dir, path), 'working version\n');
+  await writeFile(join(dir, 'tracked.txt'), 'unrelated edit\n');
+  await writeFile(join(dir, 'untracked.txt'), 'private\n');
+  const staged = (await inspectChangedPath(dir, path, 'staged')).output;
+  const worktree = (await inspectChangedPath(dir, path, 'unstaged')).output;
+  assert.match(staged, /^\+staged version$/m);
+  assert.match(worktree, /^\+working version$/m);
+  assert.doesNotMatch(staged, /working|unrelated/);
+  assert.doesNotMatch(worktree, /unrelated/);
+  await assert.rejects(() => inspectChangedPath(dir, 'untracked.txt', 'unstaged'), /rastreado/);
 });
 
 test('lists and stages/unstages without changing worktree content', async t => {

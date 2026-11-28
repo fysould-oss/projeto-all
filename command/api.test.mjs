@@ -57,6 +57,9 @@ test('persists workflow, gates dependent tasks and inspects a real Git worktree'
   const textResponse = await fetch(origin + '/?' + textQuery);
   assert.equal(textResponse.status, 200);
   assert.equal((await textResponse.json()).text, 'original\n');
+  const diffResponse = await fetch(origin + '/?view=file-diff&mode=unstaged&path=sample.txt&project=' + project.id);
+  assert.equal(diffResponse.status, 200);
+  assert.match((await diffResponse.json()).output, /^\+changed$/m);
   const { objectives: [objective] } = await mutate('objective.create', { projectId: project.id, title: 'Entrega' });
   const { tasks: [first] } = await mutate('task.create', { objectiveId: objective.id, title: 'Verificar', dependencies: [] });
   const { tasks } = await mutate('task.create', { objectiveId: objective.id, title: 'Revisar', dependencies: [first.id] });

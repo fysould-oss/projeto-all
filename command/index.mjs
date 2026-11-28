@@ -58,6 +58,19 @@ export async function listFiles(project) {
   return parseStatus(await git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--']));
 }
 
+export async function inspectChangedPath(project, path, mode) {
+  if (typeof path !== 'string' || !path || path.length > 4096 || path.includes('\0')
+    || !['staged', 'unstaged'].includes(mode)) throw new Error('Caminho ou modo de diff inválido.');
+  const cwd = repoPath(project);
+  const entry = (await listFiles(cwd)).find(file => file.path === path);
+  if (!entry || entry.status === '??') throw new Error('Selecione um caminho rastreado na lista de alterações atual.');
+  const paths = entry.renameFrom ? [entry.renameFrom, path] : [path];
+  const modeArgs = mode === 'staged' ? ['--cached'] : [];
+  const output = await git(cwd, ['diff', ...modeArgs, '--no-ext-diff', '--no-textconv', '--no-color',
+    '--submodule=short', '--', ...paths], 'Não foi possível consultar o diff deste caminho dentro do limite de leitura.');
+  return { output };
+}
+
 async function committedTree(cwd, revision) {
   await ensureRoot(cwd);
   const tree = (await git(cwd, ['--no-replace-objects', 'rev-parse', '--verify', 'HEAD^{tree}'], 'Não foi possível localizar uma árvore no HEAD.')).trim();

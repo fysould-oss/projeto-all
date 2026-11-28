@@ -805,6 +805,9 @@ pre[data-git-output] a { color: var(--cyan); }
 .committed-path-list { list-style: none; padding: 0; margin-block: .5rem; max-block-size: 14rem; overflow: auto; }
 .committed-path-list button { text-align: start; overflow-wrap: anywhere; max-inline-size: 100%; }
 .committed-file-text { max-block-size: 24rem; overflow: auto; padding: .7rem; background: var(--bg-deep); }
+.git-path-diff { flex: 1 0 100%; min-width: 0; }
+.git-path-diff summary { cursor: pointer; }
+.git-path-diff button { margin: .3rem .3rem 0 0; }
 a:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
 section[id] { scroll-margin-top: 6rem; }
 .executor-jobs-panel { min-height: 10rem; }

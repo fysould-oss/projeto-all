@@ -534,6 +534,35 @@ function fillGitFiles(target, project, files) {
       controls.append(button);
     }
     row.append(controls);
+    if (file.status !== '??') {
+      const details = element('details', undefined, 'git-path-diff');
+      const output = element('pre', '', 'approval-diff');
+      output.setAttribute('role', 'status');
+      details.append(element('summary', 'Ver diff do arquivo'));
+      let sequence = 0;
+      for (const [mode, label, available] of [
+        ['staged', 'Preparado', file.index !== ' '],
+        ['unstaged', 'Não preparado', file.worktree !== ' '],
+      ]) {
+        if (!available) continue;
+        const button = element('button', label, 'button button-quiet');
+        button.type = 'button';
+        button.addEventListener('click', async () => {
+          const id = ++sequence;
+          const params = new URLSearchParams({ view: 'file-diff', project, path: file.path, mode });
+          output.textContent = 'Consultando ' + label.toLowerCase() + '…';
+          try {
+            const result = await request('?' + params);
+            if (id === sequence) output.textContent = result.output || 'Nenhuma diferença neste modo.';
+          } catch (error) {
+            if (id === sequence) output.textContent = error.message;
+          }
+        });
+        details.append(button);
+      }
+      details.append(output);
+      row.append(details);
+    }
     return row;
   }));
 }
