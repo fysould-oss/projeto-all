@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101615">
+  <title>Centro de comando · PROJETO ALL</title>
+  <link rel="stylesheet" href="./command.css">
+  <script type="module" src="./command.js"></script>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#visao" aria-label="PROJETO ALL, centro de comando">
+        <span class="brand-mark" aria-hidden="true">+</span>
+        <span><strong>PROJETO ALL</strong><small>CENTRO DE COMANDO</small></span>
+      </a>
+      <div class="topbar-context"><span class="status-dot" aria-hidden="true"></span><span id="connection-state">Conectando ao serviço local…</span><span class="separator">/</span><span id="last-sync">Sem sincronização</span></div>
+      <a class="office-link" href="./index.html">Abrir escritório <span aria-hidden="true">↗</span></a>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar" aria-label="Navegação do centro de comando">
+        <p class="sidebar-label">Navegação</p>
+        <nav class="main-nav">
+          <a class="nav-item is-active" href="#visao" data-section="visao"><span class="nav-icon">◈</span>Visão</a>
+          <a class="nav-item" href="#projetos" data-section="projetos"><span class="nav-icon">▦</span>Projetos</a>
+          <a class="nav-item" href="#coordenador" data-section="coordenador"><span class="nav-icon">◎</span>Coordenador</a>
+          <a class="nav-item" href="#tarefas" data-section="tarefas"><span class="nav-icon">✓</span>Tarefas</a>
+          <a class="nav-item" href="#git" data-section="git"><span class="nav-icon">⑂</span>Git</a>
+          <a class="nav-item" href="#qualidade" data-section="qualidade"><span class="nav-icon">◇</span>Qualidade</a>
+          <a class="nav-item" href="#historico" data-section="historico"><span class="nav-icon">◷</span>Histórico</a>
+        </nav>
+        <div class="sidebar-bottom">
+          <div class="resource-mini"><div class="resource-mini-head"><span>Recursos</span><strong id="resource-percent">—</strong></div><div class="meter"><i id="resource-meter"></i></div><small id="resource-summary">Aguardando dados</small></div>
+          <a class="sidebar-office" href="https://projeto-all-condoconnect.sunnyode3.chatgpt.site/">Escritório privado <span>↗</span></a>
+        </div>
+      </aside>
+
+      <main class="main-content">
+        <section class="page-intro" aria-labelledby="page-title">
+          <div><p class="eyebrow">OPERAÇÕES / <span id="active-section">VISÃO</span></p><h1 id="page-title">Visão geral</h1><p class="intro-note">Estado do repositório e da coordenação local em tempo real.</p></div>
+          <div class="intro-actions"><span class="server-badge" id="server-badge">● serviço local</span><button class="button button-quiet" id="refresh-command" type="button">Atualizar <span aria-hidden="true">↻</span></button></div>
+        </section>
+
+        <section class="stats-grid" id="overview-stats" aria-label="Resumo operacional"></section>
+
+        <div class="content-grid">
+          <section class="panel panel-wide" id="visao" data-panel="visao" aria-labelledby="overview-title">
+            <header class="panel-header"><div><p class="eyebrow">TELEMETRIA</p><h2 id="overview-title">Atividade observada</h2></div><span class="panel-meta" id="activity-meta">Sem dados</span></header>
+            <div class="activity-chart" id="activity-chart" aria-label="Resumo da atividade"></div>
+            <div class="panel-foot"><span>Projetos e sessões vistos pelo monitor local</span><span id="activity-updated">—</span></div>
+          </section>
+          <section class="panel" id="coordenador" data-panel="coordenador" aria-labelledby="coordinator-title">
+            <header class="panel-header"><div><p class="eyebrow">ORQUESTRAÇÃO</p><h2 id="coordinator-title">Coordenador</h2></div><span class="live-label"><i></i>local</span></header>
+            <div id="coordinator-status" class="coordinator-status"></div>
+            <div id="coordinator-detail" class="detail-list"></div>
+          </section>
+        </div>
+
+        <section class="panel" id="projetos" data-panel="projetos" aria-labelledby="projects-title">
+          <header class="panel-header"><div><p class="eyebrow">REGISTRO</p><h2 id="projects-title">Projetos</h2></div><span class="panel-meta" id="projects-count">0 projetos</span></header>
+          <div class="table-wrap"><table><thead><tr><th>Projeto</th><th>Caminho</th></tr></thead><tbody id="projects-table"><tr><td colspan="2" class="empty-state">Nenhum projeto carregado.</td></tr></tbody></table></div>
+        </section>
+
+        <div class="content-grid lower-grid">
+          <section class="panel" id="tarefas" data-panel="tarefas" aria-labelledby="tasks-title"><header class="panel-header"><div><p class="eyebrow">EXECUÇÃO</p><h2 id="tasks-title">Tarefas</h2></div><span class="panel-meta" id="tasks-count">0 abertas</span></header><div id="tasks-list" class="stack-list"><p class="empty-state">Nenhuma tarefa registrada.</p></div></section>
+          <section class="panel" id="git" data-panel="git" aria-labelledby="git-title"><header class="panel-header"><div><p class="eyebrow">INTEGRAÇÃO</p><h2 id="git-title">Git</h2></div><span class="panel-meta">inspeção sob demanda</span></header><div id="git-list" class="stack-list"><p class="empty-state">Selecione um projeto para ver o Git.</p></div></section>
+          <section class="panel" id="qualidade" data-panel="qualidade" aria-labelledby="quality-title"><header class="panel-header"><div><p class="eyebrow">GUARDRAILS</p><h2 id="quality-title">Qualidade</h2></div></header><div id="quality-list" class="stack-list"><p class="empty-state">Nenhuma verificação registrada.</p></div></section>
+          <section class="panel" id="historico" data-panel="historico" aria-labelledby="history-title"><header class="panel-header"><div><p class="eyebrow">AUDITORIA</p><h2 id="history-title">Histórico</h2></div></header><div id="history-list" class="timeline"><p class="empty-state">Nenhum evento registrado.</p></div></section>
+        </div>
+
+        <section class="panel forms-panel" id="actions" aria-labelledby="actions-title"><header class="panel-header"><div><p class="eyebrow">AÇÕES LOCAIS</p><h2 id="actions-title">Registrar trabalho</h2></div><span class="panel-meta">persistido no serviço local</span></header><div class="forms-grid">
+          <form id="project-form" data-action="project.create"><h3>Novo projeto</h3><label>Nome<input name="name" required autocomplete="off" placeholder="projeto-all"></label><label>Caminho<input name="path" required autocomplete="off" placeholder="C:\\workspace\\projeto"></label><button class="button" type="submit">Adicionar projeto</button></form>
+          <form id="objective-form" data-action="objective.create"><h3>Novo objetivo</h3><label>Projeto<select name="projectId" id="objective-project" required><option value="">Selecione um projeto</option></select></label><label>Título<input name="title" required autocomplete="off" placeholder="Descrever o resultado"></label><button class="button" type="submit">Criar objetivo</button></form>
+          <form id="task-form" data-action="task.create"><h3>Nova tarefa</h3><label>Objetivo<select name="objectiveId" id="task-objective" required><option value="">Selecione um objetivo</option></select></label><label>Título<input name="title" required autocomplete="off" placeholder="Próximo passo executável"></label><label>Dependências<input name="dependencies" autocomplete="off" placeholder="IDs separados por vírgula"></label><button class="button" type="submit">Criar tarefa</button></form>
+        </div><p class="form-feedback" id="form-feedback" role="status" aria-live="polite"></p></section>
+      </main>
+    </div>
+  </div>
+</body>
+</html>
