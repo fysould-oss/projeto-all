@@ -82,6 +82,19 @@ export function createCommandApi(file, getActivity) {
     }
     const snapshot = database.snapshot();
     const kind = url.searchParams.get('view');
+    if (kind === 'approval-diff') {
+      const context = database.approvalDiffContext(url.searchParams.get('approval'));
+      if (!context) {
+        send(response, headers, 404, { error: 'Aprovação não encontrada.' });
+        return;
+      }
+      try {
+        send(response, headers, 200, await inspectProject(context.project, kind, context.prepared));
+      } catch {
+        send(response, headers, 422, { error: 'O diff aprovado está indisponível ou excede 256 KiB.' });
+      }
+      return;
+    }
     if (kind === 'checks') {
       const project = snapshot.projects.find(entry => entry.id === url.searchParams.get('project'));
       if (!project) {
@@ -104,7 +117,7 @@ export function createCommandApi(file, getActivity) {
       send(response, headers, 200, { steps: draftPlan(objective.title) });
       return;
     }
-    if (['status', 'diff', 'check'].includes(kind)) {
+    if (['status', 'diff', 'staged', 'check'].includes(kind)) {
       const project = snapshot.projects.find(entry => entry.id === url.searchParams.get('project'));
       if (!project) {
         send(response, headers, 404, { error: 'Projeto não encontrado.' });

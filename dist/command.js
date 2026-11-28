@@ -12,11 +12,17 @@ const modelTiers = { economy: 'econômico', balanced: 'equilibrado', advanced: '
 const actionLabels = {
   'project.create': 'Projeto cadastrado', 'objective.create': 'Objetivo criado',
   'task.create': 'Tarefa criada', 'task.state': 'Estado da tarefa atualizado',
-  'objective.plan': 'Tarefas do plano registradas',
+  'objective.plan': 'Tarefas do plano registradas', 'approval.request': 'Aprovação solicitada',
+  'approval.approve': 'Aprovação encaminhada', 'approval.reject': 'Aprovação rejeitada',
+  'approval.edit': 'Aprovação editada',
+  'approval.completed': 'Commit registrado',
+  'approval.failed': 'Falha ao tentar o commit',
+  'approval.interrupted': 'Execução interrompida',
 };
-let state = { projects: [], objectives: [], tasks: [], audit: [] };
+let state = { projects: [], objectives: [], tasks: [], audit: [], approvals: [] };
 let revision;
 let loading = false;
+let approvalsSignature;
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -74,7 +80,8 @@ function render() {
   setText('projects-count', state.projects.length + ' cadastrados');
   setText('tasks-count', state.tasks.filter(task => !['done', 'cancelled'].includes(task.state)).length + ' abertas');
   setText('coordinator-status', 'Rascunhos de plano e acompanhamento');
-  prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff']]);
+  prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff preparado'], ['staged', 'Ver conteúdo preparado']]);
+  renderApprovals();
   prepareGit('quality-list', [['check', 'Verificar alterações']]);
   fill('coordinator-detail', state.objectives, objective => {
     const tasks = state.tasks.filter(task => task.objectiveId === objective.id);
@@ -157,6 +164,40 @@ function prepareGit(id, actions) {
   result.dataset.gitOutput = '';
   result.setAttribute('aria-live', 'polite');
   target.replaceChildren(controls, result);
+}
+
+function renderApprovals() {
+  const target = byId('approval-list');
+  if (!target) return;
+  const approvals = Array.isArray(state.approvals) ? state.approvals : [];
+  fill('approval-list', approvals.slice().reverse(), approval => {
+    const project = state.projects.find(entry => entry.id === approval.projectId);
+    const status = { pending: 'Pendente', rejected: 'Rejeitada', executing: 'Em execução', completed: 'Concluída', failed: 'Falhou', expired: 'Expirada' }[approval.state] || approval.state;
+    const item = element('article', undefined, 'approval-card');
+    const heading = element('div', undefined, 'approval-card-heading');
+    heading.append(element('strong', approval.message || 'Commit sem mensagem'), element('span', status, 'approval-status approval-' + approval.state));
+    item.append(heading);
+    const impact = [project?.name || 'Projeto não encontrado', approval.branch && 'branch ' + approval.branch,
+      approval.base && 'base ' + approval.base.slice(0, 12), approval.paths?.length ? approval.paths.length + ' caminho(s)' : 'impacto não informado'].filter(Boolean).join(' · ');
+    item.append(element('p', impact, 'approval-impact'), element('p', approval.reason || 'Sem motivo informado.', 'approval-reason'));
+    if (approval.paths?.length) item.append(element('p', 'Arquivos: ' + approval.paths.join(', '), 'approval-paths'));
+    if (approval.commit) item.append(element('p', 'Commit: ' + approval.commit, 'approval-commit'));
+    if (approval.error) item.append(element('p', approval.error, 'approval-error'));
+    if (approval.expiresAt) item.append(element('p', 'Expira em ' + new Date(approval.expiresAt).toLocaleString('pt-BR'), 'approval-expiry'));
+    if (approval.state === 'pending') {
+      const diffButton = element('button', 'Ver diff da solicitação', 'button button-quiet'); diffButton.type = 'button'; diffButton.dataset.approvalDiff = approval.id; item.append(diffButton);
+      const diffOutput = element('pre', '', 'approval-diff'); diffOutput.dataset.approvalDiffOutput = approval.id; diffOutput.hidden = true; item.append(diffOutput);
+      const edit = element('div', undefined, 'approval-edit');
+      const message = element('input'); message.value = approval.message || ''; message.maxLength = 200; message.dataset.approvalMessage = approval.id; message.setAttribute('aria-label', 'Mensagem da aprovação');
+      const reason = element('textarea'); reason.value = approval.reason || ''; reason.maxLength = 500; reason.rows = 2; reason.dataset.approvalReason = approval.id; reason.setAttribute('aria-label', 'Motivo da aprovação');
+      const controls = element('div', '');
+      const save = element('button', 'Salvar edição', 'button button-quiet'); save.type = 'button'; save.dataset.approvalAction = 'edit'; save.dataset.approvalId = approval.id; save.dataset.approvalRevision = approval.revision || '';
+      const reject = element('button', 'Rejeitar', 'button button-quiet'); reject.type = 'button'; reject.dataset.approvalAction = 'reject'; reject.dataset.approvalId = approval.id; reject.dataset.approvalRevision = approval.revision || '';
+      const approve = element('button', 'Aprovar', 'button'); approve.type = 'button'; approve.dataset.approvalAction = 'approve'; approve.dataset.approvalId = approval.id; approve.dataset.approvalRevision = approval.revision || '';
+      controls.append(save, reject, approve); edit.append(message, reason, controls); item.append(edit);
+    }
+    return item;
+  }, 'Nenhuma aprovação registrada.');
 }
 
 function renderMetrics() {
@@ -274,6 +315,11 @@ async function submitCheck(action, data) {
 function update(snapshot) {
   if (snapshot.audit.length < state.audit.length) return;
   state = { ...state, ...snapshot };
+  const nextApprovals = JSON.stringify(state.approvals || []);
+  if (approvalsSignature !== nextApprovals) {
+    approvalsSignature = nextApprovals;
+    renderApprovals();
+  }
   const next = state.audit.at(-1)?.id ?? '';
   if (revision !== next) {
     revision = next;
@@ -297,16 +343,17 @@ async function refresh() {
 }
 
 async function mutate(action, data) {
-  setText('form-feedback', 'Salvando…');
+  const feedback = action.startsWith('approval.') ? 'approval-feedback' : 'form-feedback';
+  setText(feedback, 'Salvando…');
   try {
     update(await request('', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action, data }),
     }));
-    setText('form-feedback', actionLabels[action]);
+    setText(feedback, actionLabels[action]);
     return true;
   } catch (error) {
-    setText('form-feedback', error.message || 'Não foi possível salvar.');
+    setText(feedback, error.message || 'Não foi possível salvar.');
     return false;
   }
 }
@@ -314,7 +361,8 @@ async function mutate(action, data) {
 document.addEventListener('submit', async event => {
   const form = event.target;
   const data = new FormData(form);
-  const action = data.has('path') ? 'project.create'
+  const action = form.id === 'approval-form' ? 'approval.request'
+    : data.has('path') ? 'project.create'
     : data.has('objectiveId') ? 'task.create'
       : data.has('projectId') && data.has('title') ? 'objective.create' : null;
   if (!action) return;
@@ -322,6 +370,7 @@ document.addEventListener('submit', async event => {
   if (form.dataset.saving) return;
   form.dataset.saving = 'true';
   const fields = Object.fromEntries(data);
+  if (action === 'approval.request') fields.projectId = byId('approval-project').value;
   if (action === 'task.create') fields.dependencies = data.getAll('dependencies').flatMap(value => value.split(',')).map(value => value.trim()).filter(Boolean);
   if (await mutate(action, fields)) {
     form.reset();
@@ -346,6 +395,34 @@ document.addEventListener('change', async event => {
 });
 
 document.addEventListener('click', async event => {
+  const approvalButton = event.target.closest('[data-approval-action], [data-approval-diff]');
+  if (approvalButton) {
+    if (approvalButton.dataset.approvalDiff) {
+      const output = approvalButton.parentElement.querySelector(`[data-approval-diff-output="${approvalButton.dataset.approvalDiff}"]`);
+      approvalButton.disabled = true;
+      try {
+        const query = new URLSearchParams({ view: 'approval-diff', approval: approvalButton.dataset.approvalDiff });
+        const result = await request('?' + query);
+        output.hidden = false;
+        output.textContent = result.output || 'Nenhuma diferença disponível.';
+      } catch (error) { output.hidden = false; output.textContent = error.message; }
+      finally { approvalButton.disabled = false; }
+      return;
+    }
+    const id = approvalButton.dataset.approvalId;
+    const revision = approvalButton.dataset.approvalRevision;
+    let action = 'approval.' + approvalButton.dataset.approvalAction;
+    let data = { id, revision };
+    if (action === 'approval.edit') {
+      const card = approvalButton.closest('.approval-card');
+      data.message = card.querySelector(`[data-approval-message="${id}"]`).value;
+      data.reason = card.querySelector(`[data-approval-reason="${id}"]`).value;
+    }
+    approvalButton.disabled = true;
+    await mutate(action, data);
+    approvalButton.disabled = false;
+    return;
+  }
   const button = event.target.closest('[data-git-view]');
   if (!button) return;
   const group = button.closest('section') || document;

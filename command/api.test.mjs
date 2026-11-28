@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, writeFile, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -139,4 +139,98 @@ test('previews and registers a dependent plan and executes a project script over
   assert.match(completed.output, /fixture completed/);
   assert.equal(completed.status, 'passed');
   assert.ok(completed.durationMs >= 0);
+});
+
+test('requires a current approval and commits exactly the reviewed Git index', async t => {
+  const folder = await mkdtemp(join(tmpdir(), 'projeto-all-approved-commit-'));
+  const repository = join(folder, 'repo');
+  await mkdir(repository);
+  const git = (...args) => execFileSync('git', args, { cwd: repository, windowsHide: true }).toString().trim();
+  git('init', '-q');
+  git('config', 'user.email', 'test@example.invalid');
+  git('config', 'user.name', 'Review Fixture');
+  await writeFile(join(repository, 'sample.txt'), 'base\n');
+  git('add', 'sample.txt');
+  git('commit', '-qm', 'Initial');
+  const base = git('rev-parse', 'HEAD');
+
+  const file = join(folder, 'command.json');
+  const activity = () => ({ status: 'ready', projects: [] });
+  let handler = createCommandApi(file, activity);
+  const server = createServer((request, response) => handler(request, response, {}));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => {
+    await handler.close();
+    await new Promise(resolve => server.close(resolve));
+    await rm(folder, { recursive: true, force: true });
+  });
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  const post = (action, data) => fetch(origin, {
+    method: 'POST', headers: { origin, 'content-type': 'application/json' },
+    body: JSON.stringify({ action, data }),
+  });
+  async function successful(action, data) {
+    const response = await post(action, data);
+    const json = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(json));
+    return json;
+  }
+  const { projects: [project] } = await successful('project.create', { name: 'Review fixture', path: repository });
+  await writeFile(join(repository, 'sample.txt'), 'staged\n');
+  git('add', 'sample.txt');
+  await writeFile(join(repository, 'sample.txt'), 'user edit\n');
+  const { approvals: [pending] } = await successful('approval.request', {
+    projectId: project.id, message: 'Original proposal', reason: 'Review what is staged',
+  });
+  assert.equal(pending.state, 'pending');
+  assert.equal(git('rev-parse', 'HEAD'), base);
+  assert.ok(!Object.hasOwn(pending, 'prepared'));
+  const approvalDiff = async id => (await (await fetch(origin + '/?view=approval-diff&approval=' + id)).json()).output;
+  assert.match(await approvalDiff(pending.id), /^\+staged$/m);
+  assert.doesNotMatch(await approvalDiff(pending.id), /user edit/);
+  const { approvals: [edited] } = await successful('approval.edit', {
+    id: pending.id, revision: pending.revision, message: 'Reviewed commit', reason: 'Updated rationale',
+  });
+  assert.notEqual(edited.revision, pending.revision);
+  assert.equal((await post('approval.approve', { id: pending.id, revision: pending.revision })).status, 400);
+  assert.equal(git('rev-parse', 'HEAD'), base);
+  await handler.close();
+  handler = createCommandApi(file, activity);
+  const { approvals: [decision], audit } = await successful('approval.approve', { id: edited.id, revision: edited.revision });
+  assert.equal(decision.state, 'completed', JSON.stringify(decision));
+  assert.equal(decision.commit, git('rev-parse', 'HEAD'));
+  assert.equal(git('show', 'HEAD:sample.txt'), 'staged');
+  assert.match(git('diff', '--', 'sample.txt'), /user edit/);
+  assert.doesNotMatch(JSON.stringify(audit), /Updated rationale|Reviewed commit/);
+  assert.equal((await post('approval.approve', { id: edited.id, revision: edited.revision })).status, 400);
+
+  git('add', 'sample.txt');
+  const request = { projectId: project.id, message: 'Stale commit', reason: 'Test changed scope' };
+  const { approvals } = await successful('approval.request', request);
+  const stale = approvals.at(-1);
+  await writeFile(join(repository, 'sample.txt'), 'changed stage\n');
+  git('add', 'sample.txt');
+  assert.match(await approvalDiff(stale.id), /^\+user edit$/m);
+  assert.doesNotMatch(await approvalDiff(stale.id), /changed stage/);
+  const failed = (await successful('approval.approve', { id: stale.id, revision: stale.revision })).approvals.at(-1);
+  assert.equal(failed.state, 'failed');
+  assert.equal(git('rev-parse', 'HEAD'), decision.commit);
+
+  const reject = (await successful('approval.request', request)).approvals.at(-1);
+  assert.equal((await successful('approval.reject', { id: reject.id, revision: reject.revision })).approvals.at(-1).state, 'rejected');
+  assert.equal(git('rev-parse', 'HEAD'), decision.commit);
+
+  const expired = (await successful('approval.request', request)).approvals.at(-1);
+  const interrupted = (await successful('approval.request', request)).approvals.at(-1);
+  await handler.close();
+  const persisted = JSON.parse(await readFile(file, 'utf8'));
+  persisted.approvals.find(item => item.id === expired.id).expiresAt = '2000-01-01T00:00:00.000Z';
+  persisted.approvals.find(item => item.id === interrupted.id).state = 'executing';
+  await writeFile(file, JSON.stringify(persisted));
+  handler = createCommandApi(file, activity);
+  const recovered = await (await fetch(origin)).json();
+  assert.equal(recovered.approvals.find(item => item.id === expired.id).state, 'expired');
+  assert.equal(recovered.approvals.find(item => item.id === interrupted.id).state, 'failed');
+  assert.equal((await post('approval.approve', { id: expired.id, revision: expired.revision })).status, 400);
+  assert.equal(git('rev-parse', 'HEAD'), decision.commit);
 });

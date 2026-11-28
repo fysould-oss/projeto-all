@@ -3,9 +3,12 @@ import { access, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promis
 import { constants } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { draftPlan } from './plan.mjs';
+import { prepareCommit, executeCommit } from './commit.mjs';
 
 const STATES = new Set(['pending', 'running', 'blocked', 'review', 'done', 'failed', 'cancelled']);
 const ACTIONS = new Set(['project.create', 'objective.create', 'objective.plan', 'task.create', 'task.state']);
+const APPROVAL_ACTIONS = new Set(['approval.request', 'approval.edit', 'approval.approve', 'approval.reject']);
+const APPROVAL_TTL_MS = 15 * 60 * 1000;
 
 const now = () => new Date().toISOString();
 const clone = value => structuredClone(value);
@@ -16,7 +19,11 @@ const text = (value, label) => {
 const id = value => typeof value === 'string' && value.length > 0 ? value : null;
 
 function emptySnapshot() {
-  return { version: 1, projects: [], objectives: [], tasks: [], audit: [] };
+  return { version: 1, projects: [], objectives: [], tasks: [], approvals: [], audit: [] };
+}
+
+function expired(approval) {
+  return approval.state === 'pending' && Date.parse(approval.expiresAt) <= Date.now();
 }
 
 async function projectDirectory(value) {
@@ -65,12 +72,75 @@ export async function createStore(path) {
         .filter(field => Object.hasOwn(data, field)) });
   }
 
+  state.approvals ??= [];
+  if (!Array.isArray(state.approvals)) throw new TypeError('invalid approvals snapshot');
+  const interrupted = state.approvals.filter(approval => approval.state === 'executing');
+  for (const approval of interrupted) {
+    approval.state = 'failed';
+    approval.error = 'Execução interrompida. Confira o histórico Git antes de solicitar outro commit.';
+    audit(state, 'approval.interrupted', {}, approval.id);
+  }
+  if (interrupted.length) await persist(state);
+
+  async function save(next, action, data, result) {
+    audit(next, action, data, result.id);
+    await persist(next);
+    state = next;
+    return clone(result);
+  }
+
+  async function mutateApproval(action, data, next) {
+    let approval;
+    if (action !== 'approval.request') {
+      approval = next.approvals.find(item => item.id === data.id);
+      if (!approval) throw new Error('Aprovação não encontrada.');
+      if (approval.state !== 'pending' || expired(approval)) throw new Error('A aprovação já foi decidida ou expirou.');
+      if (approval.revision !== data.revision) throw new Error('A solicitação mudou. Atualize e revise a nova versão.');
+    }
+    const project = next.projects.find(item => item.id === (approval?.projectId ?? data.projectId));
+    if (!project) throw new Error('Projeto não encontrado.');
+
+    if (action === 'approval.request' || action === 'approval.edit') {
+      const reason = typeof data.reason === 'string' ? data.reason.trim() : '';
+      if (!reason || reason.length > 500) throw new Error('Informe um motivo de até 500 caracteres.');
+      const prepared = await prepareCommit(project, data.message);
+      if (!approval) {
+        approval = { id: randomUUID(), projectId: project.id, kind: 'git.commit', createdAt: now() };
+        next.approvals.push(approval);
+      }
+      Object.assign(approval, {
+        message: prepared.message, reason, paths: prepared.paths, branch: prepared.branch, base: prepared.head,
+        prepared, state: 'pending', revision: randomUUID(),
+        expiresAt: new Date(Date.now() + APPROVAL_TTL_MS).toISOString(),
+      });
+      return save(next, action, data, approval);
+    }
+    if (action === 'approval.reject') {
+      approval.state = 'rejected';
+      return save(next, action, data, approval);
+    }
+
+    approval.state = 'executing';
+    await save(next, action, data, approval);
+    const final = clone(state);
+    const outcome = final.approvals.find(item => item.id === approval.id);
+    try {
+      outcome.commit = await executeCommit(project, approval.prepared);
+      outcome.state = 'completed';
+    } catch (error) {
+      outcome.state = 'failed';
+      outcome.error = error.code ? 'Falha na execução Git. Confira o estado do repositório.' : error.message;
+    }
+    return save(final, 'approval.' + outcome.state, {}, outcome);
+  }
+
   let queue = Promise.resolve();
 
   async function mutate(action, data = {}) {
-    if (!ACTIONS.has(action)) throw new TypeError('Ação desconhecida.');
+    if (!ACTIONS.has(action) && !APPROVAL_ACTIONS.has(action)) throw new TypeError('Ação desconhecida.');
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new TypeError('Dados da ação inválidos.');
     const next = clone(state);
+    if (APPROVAL_ACTIONS.has(action)) return mutateApproval(action, data, next);
     const timestamp = now();
     let result;
     if (action === 'project.create') {
@@ -120,14 +190,22 @@ export async function createStore(path) {
       task.updatedAt = timestamp;
       result = task;
     }
-    audit(next, action, data, result.id);
-    await persist(next);
-    state = next;
-    return clone(result);
+    return save(next, action, data, result);
   }
 
   return {
-    snapshot() { return clone(state); },
+    snapshot() {
+      const snapshot = clone(state);
+      snapshot.approvals = snapshot.approvals.map(({ prepared, ...approval }) => ({
+        ...approval, state: expired(approval) ? 'expired' : approval.state,
+      }));
+      return snapshot;
+    },
+    approvalDiffContext(approvalId) {
+      const approval = state.approvals.find(item => item.id === approvalId);
+      const project = state.projects.find(item => item.id === approval?.projectId);
+      return project && clone({ project, prepared: approval.prepared });
+    },
     mutate(action, data) {
       const result = queue.then(() => mutate(action, data));
       queue = result.catch(() => {});

@@ -19,6 +19,7 @@
 - [x] Gerar e revisar um primeiro rascunho por regras a partir das ações escritas no objetivo e persistir as dependências após aprovação do plano.
 - [ ] Definir modelos, políticas por projeto, limites de concorrência e tokens, medição de custo e alertas.
 - [ ] Implementar aprovações com escopo, expiração, decisão e confirmação vinculada ao executor.
+- [x] Vincular aprovação persistente e versionada ao Git commit local, com revisão do diff preparado, rejeição, expiração e prevenção de escopo desatualizado.
 
 ## 4. Ferramentas de desenvolvimento
 
