@@ -26,6 +26,7 @@
           <a class="nav-item is-active" href="#visao" data-section="visao"><span class="nav-icon">◈</span>Visão</a>
           <a class="nav-item" href="#projetos" data-section="projetos"><span class="nav-icon">▦</span>Projetos</a>
           <a class="nav-item" href="#coordenador" data-section="coordenador"><span class="nav-icon">◎</span>Coordenador</a>
+          <a class="nav-item" href="#dependency-graph" data-section="dependency-graph"><span class="nav-icon" aria-hidden="true">↗</span>Grafo</a>
           <a class="nav-item" href="#tarefas" data-section="tarefas"><span class="nav-icon">✓</span>Tarefas</a>
           <a class="nav-item" href="#git" data-section="git"><span class="nav-icon">⑂</span>Git</a>
           <a class="nav-item" href="#previews" data-section="previews"><span class="nav-icon" aria-hidden="true">▣</span>Previews</a>
@@ -65,6 +66,17 @@
         </section>
 
         <div class="content-grid lower-grid">
+          <section class="panel graph-panel" id="dependency-graph" aria-labelledby="graph-title">
+            <header class="panel-header"><h2 id="graph-title">Grafo de execução</h2></header>
+            <div class="graph-toolbar">
+              <label>Objetivo <select id="graph-objective"><option value="">Selecione um objetivo</option></select></label>
+              <button type="button" id="graph-refresh" class="button button-quiet" disabled>Atualizar grafo</button>
+              <span id="graph-counts" class="panel-meta"></span>
+            </div>
+            <p id="graph-status" role="status">Selecione um objetivo para carregar o grafo.</p>
+            <div id="graph-canvas" class="graph-canvas" role="region" aria-label="Dependências entre tarefas" tabindex="0" hidden></div>
+            <div id="graph-details" class="graph-details" aria-live="polite"></div>
+          </section>
           <section class="panel" id="tarefas" data-panel="tarefas" aria-labelledby="tasks-title"><header class="panel-header"><div><p class="eyebrow">EXECUÇÃO</p><h2 id="tasks-title">Tarefas</h2></div><div class="task-toolbar"><span class="panel-meta" id="tasks-count">0 abertas</span><label for="task-view">Modo</label><select id="task-view"><option value="list">Lista</option><option value="board">Kanban</option></select></div></header><div id="tasks-list" class="stack-list"><p class="empty-state">Nenhuma tarefa registrada.</p></div></section>
           <section class="panel" id="git" data-panel="git" aria-labelledby="git-title"><header class="panel-header"><div><p class="eyebrow">INTEGRAÇÃO</p><h2 id="git-title">Git</h2></div><span class="panel-meta">inspeção sob demanda</span></header><div id="git-list" class="stack-list"><p class="empty-state">Selecione um projeto para ver o Git.</p></div><div class="approval-panel"><div class="approval-heading"><div><h3>Aprovações Git</h3></div><span class="panel-meta">conteúdo já preparado</span></div><form id="approval-form" class="approval-form"><label>Projeto <select id="approval-project" required data-project-select><option value="">Selecione um projeto</option></select></label><label>Operação <select id="approval-kind" name="kind"><option value="git.commit">Commit</option><option value="git.push">Push</option></select></label><label id="approval-remote-label" hidden>Remoto <select id="approval-remote" name="remote" disabled><option value="">Selecione um projeto</option></select></label><label>Mensagem do commit <input id="approval-message" name="message" required maxlength="200" autocomplete="off" placeholder="Descreva a alteração preparada"></label><label>Motivo <textarea id="approval-reason" name="reason" required maxlength="500" rows="3" placeholder="Por que esta operação deve ser aprovada?"></textarea></label><button class="button" type="submit">Solicitar aprovação</button></form><p id="approval-feedback" class="form-feedback" role="status"></p><div class="approval-history"><h3>Aprovações</h3><div id="approval-list" class="stack-list"><p class="empty-state">Nenhuma aprovação registrada.</p></div></div></div></section>
           <section class="panel preview-panel" id="previews" aria-labelledby="preview-title">

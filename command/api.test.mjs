@@ -44,9 +44,18 @@ test('persists workflow, gates dependent tasks and inspects a real Git worktree'
   const { tasks: [first] } = await mutate('task.create', { objectiveId: objective.id, title: 'Verificar', dependencies: [] });
   const { tasks } = await mutate('task.create', { objectiveId: objective.id, title: 'Revisar', dependencies: [first.id] });
   const second = tasks.find(entry => entry.id !== first.id);
+  const graphUrl = origin + '/?view=graph&objective=' + objective.id;
+  const before = await (await fetch(graphUrl)).json();
+  assert.equal(before.objective.id, objective.id);
+  assert.deepEqual(before.edges, [{ from: first.id, to: second.id }]);
+  assert.equal(before.nodes.find(node => node.id === first.id).ready, true);
+  assert.equal(before.nodes.find(node => node.id === second.id).ready, false);
   assert.equal((await post('task.state', { id: second.id, state: 'running' })).status, 400);
   await mutate('task.state', { id: first.id, state: 'running' });
   await mutate('task.state', { id: first.id, state: 'done' });
+  const after = await (await fetch(graphUrl)).json();
+  assert.equal(after.nodes.find(node => node.id === second.id).ready, true);
+  assert.equal((await fetch(origin + '/?view=graph&objective=missing')).status, 404);
   await mutate('task.state', { id: second.id, state: 'running' });
   await mutate('task.state', { id: second.id, state: 'cancelled' });
 

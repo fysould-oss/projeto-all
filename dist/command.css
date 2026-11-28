@@ -702,6 +702,25 @@ td:first-child {
 .preview-frame-wrap { overflow: auto; padding: 1rem; background: var(--bg); min-height: 12rem; }
 #preview-frame { display: block; width: 1280px; height: 720px; margin: auto; border: 0; background: #fff; }
 #preview-feedback, .preview-caveat { margin: 0 1rem .75rem; color: var(--muted); font-size: .76rem; }
+.graph-panel { grid-column: 1 / -1; min-width: 0; }
+.graph-toolbar { display:flex; flex-wrap:wrap; align-items:end; gap:.7rem; padding:1rem; }
+.graph-toolbar label { display:grid; gap:.25rem; color:var(--muted); font-size:.76rem; }
+.graph-toolbar select { background:var(--bg-deep); color:var(--text); border:1px solid var(--line); border-radius:.35rem; padding:.45rem; }
+#graph-status, #graph-details { margin:0 1rem .75rem; color:var(--muted); font-size:.76rem; }
+.graph-canvas { max-height: 28rem; overflow:auto; margin:0 1rem 1rem; border:1px solid var(--line-soft); border-radius:var(--radius); background:var(--bg); }
+.graph-board { position:relative; }
+.graph-canvas svg { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+.graph-canvas line { stroke:var(--line); stroke-width:2; }
+.graph-node { position:absolute; width:174px; height:64px; display:grid; gap:.2rem; text-align:left; padding:.45rem; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); color:var(--text); cursor:pointer; }
+.graph-node strong { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.graph-node small { color:var(--muted); font-size:.7rem; }
+.graph-node[data-state="running"] { border-color:var(--cyan); }
+.graph-node[data-state="blocked"] { border-color:var(--amber); }
+.graph-node[data-state="review"] { border-color:var(--purple); }
+.graph-node[data-state="failed"] { border-color:var(--red); }
+.graph-node[data-state="done"], .graph-node[data-ready="true"] { border-color:var(--lime); }
+.graph-node[aria-pressed="true"], .graph-canvas:focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
+.graph-details a { color:var(--cyan); }
 .check-output { max-height: 20rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 main select { background: var(--bg-deep); color: var(--text); border: 1px solid var(--line); border-radius: 0.35rem; min-height: 2rem; max-width: 100%; }
 pre[data-git-output] { overflow: auto; max-height: 24rem; white-space: pre-wrap; overflow-wrap: anywhere; font: 0.75rem var(--mono); }

@@ -220,8 +220,9 @@ export async function createStore(path) {
       if (!task) throw new Error('Tarefa não encontrada.');
       if (!STATES.has(data.state)) throw new TypeError('Estado de tarefa inválido.');
       if (data.state === 'running') {
-        const deps = next.tasks.filter(item => task.dependencies.includes(item.id));
-        if (deps.some(item => item.state !== 'done')) throw new Error('Conclua as dependências antes de iniciar esta tarefa.');
+        if (task.dependencies.some(dependency => next.tasks.find(item => item.id === dependency)?.state !== 'done')) {
+          throw new Error('Conclua as dependências antes de iniciar esta tarefa.');
+        }
       }
       task.state = data.state;
       task.updatedAt = timestamp;

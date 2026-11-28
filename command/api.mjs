@@ -4,6 +4,7 @@ import { draftPlan } from './plan.mjs';
 import { createChecks } from './checks.mjs';
 import { listFiles } from './index.mjs';
 import { listRemotes } from './push.mjs';
+import { objectiveGraph } from './graph.mjs';
 
 const json = { 'Content-Type': 'application/json; charset=utf-8' };
 
@@ -84,6 +85,15 @@ export function createCommandApi(file, getActivity) {
     }
     const snapshot = database.snapshot();
     const kind = url.searchParams.get('view');
+    if (kind === 'graph') {
+      const graph = objectiveGraph(snapshot, url.searchParams.get('objective'));
+      if (!graph) {
+        send(response, headers, 404, { error: 'Objetivo não encontrado.' });
+        return;
+      }
+      send(response, headers, 200, graph);
+      return;
+    }
     if (kind === 'files' || kind === 'remotes') {
       const project = snapshot.projects.find(entry => entry.id === url.searchParams.get('project'));
       if (!project) {

@@ -25,6 +25,9 @@ let revision;
 let loading = false;
 let approvalsSignature;
 let previewReloadTimer;
+let graphRequest = 0;
+let graphObjective = '';
+let graphRevision;
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -85,6 +88,7 @@ function render() {
   prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff completo'], ['staged', 'Ver diff preparado']]);
   renderApprovals();
   renderPreviewPanel();
+  renderGraphPanel();
   prepareGit('quality-list', [['check', 'Verificar alterações']]);
   fill('coordinator-detail', state.objectives, objective => {
     const tasks = state.tasks.filter(task => task.objectiveId === objective.id);
@@ -296,6 +300,142 @@ function applyPreviewSize() {
     input.value = Math.min(2400, Math.max(240, Math.round(input.valueAsNumber) || 240));
     frame.style[side] = input.value + 'px';
   }
+}
+
+let graphNodes = new Map();
+let selectedGraphNode;
+
+function renderGraphPanel() {
+  const select = byId('graph-objective');
+  options(select, state.objectives, objective => objective.title, 'Selecione um objetivo');
+  if (select.value && (select.value !== graphObjective || graphRevision !== revision)) {
+    graphObjective = select.value;
+    graphRevision = revision;
+    void loadGraph(select.value);
+  }
+}
+
+function resetGraph() {
+  graphNodes.clear();
+  selectedGraphNode = undefined;
+  const canvas = byId('graph-canvas');
+  canvas.replaceChildren();
+  canvas.hidden = true;
+  byId('graph-details').replaceChildren();
+  setText('graph-counts', '');
+}
+
+async function loadGraph(objective) {
+  const sequence = ++graphRequest;
+  setText('graph-status', 'Carregando dependências…');
+  try {
+    const query = new URLSearchParams({ view: 'graph', objective });
+    const graph = await request('?' + query);
+    if (sequence !== graphRequest || byId('graph-objective').value !== objective) return;
+    renderGraph(graph);
+  } catch (error) {
+    if (sequence !== graphRequest || byId('graph-objective').value !== objective) return;
+    resetGraph();
+    setText('graph-status', error.message);
+    graphRevision = undefined;
+  }
+}
+
+function graphStatus(node) {
+  if (node.ready) return 'Pronta';
+  if (node.state === 'pending' && node.layer === null) return 'Dependência não resolvida';
+  if (node.state === 'pending' && node.waitingOn.length) return 'Aguardando dependência';
+  return labels[node.state] || 'Pendente';
+}
+
+function renderGraph({ nodes, edges, counts, truncated }) {
+  const canvas = byId('graph-canvas');
+  const warning = [
+    counts.unresolved && counts.unresolved + ' tarefa(s) com dependências não resolvidas',
+    truncated && 'Parte do grafo foi omitida pelo limite de exibição',
+  ].filter(Boolean).join(' · ');
+  setText('graph-status', warning || (nodes.length ? 'Selecione uma tarefa para abrir os detalhes.' : 'Nenhuma tarefa neste objetivo.'));
+  setText('graph-counts', counts.total + ' tarefas · ' + counts.ready + ' prontas · ' + counts.waiting + ' aguardando · ' + counts.done + ' concluídas');
+  graphNodes = new Map(nodes.map(node => [node.id, node]));
+  canvas.hidden = !nodes.length;
+  if (!nodes.length) {
+    canvas.replaceChildren();
+    showGraphNode();
+    return;
+  }
+
+  const layers = new Map();
+  for (const node of nodes) {
+    const layer = node.layer ?? Infinity;
+    if (!layers.has(layer)) layers.set(layer, []);
+    layers.get(layer).push(node);
+  }
+  const ordered = [...layers.entries()].sort((a, b) => a[0] - b[0]);
+  const width = ordered.length * 220;
+  const height = Math.max(...ordered.map(([, entries]) => entries.length * 88 + 24));
+  const positions = new Map();
+  const board = element('div', undefined, 'graph-board');
+  board.style.width = width + 'px';
+  board.style.height = height + 'px';
+  for (const [column, [, entries]] of ordered.entries()) {
+    entries.forEach((node, index) => {
+      const x = column * 220 + 20;
+      const y = index * 88 + 20;
+      positions.set(node.id, { x, y });
+      const button = element('button', undefined, 'graph-node');
+      button.type = 'button';
+      button.dataset.graphNode = node.id;
+      button.dataset.state = node.state;
+      button.dataset.ready = String(node.ready);
+      button.style.left = x + 'px';
+      button.style.top = y + 'px';
+      button.append(element('strong', node.title), element('small', graphStatus(node) + (node.external ? ' · outro objetivo' : '')));
+      board.append(button);
+    });
+  }
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const connections = document.createElementNS(svgNS, 'svg');
+  connections.setAttribute('viewBox', '0 0 ' + width + ' ' + height);
+  connections.setAttribute('aria-hidden', 'true');
+  for (const { from, to } of edges) {
+    const start = positions.get(from);
+    const end = positions.get(to);
+    const line = document.createElementNS(svgNS, 'line');
+    line.setAttribute('x1', start.x + 174);
+    line.setAttribute('y1', start.y + 32);
+    line.setAttribute('x2', end.x);
+    line.setAttribute('y2', end.y + 32);
+    connections.append(line);
+  }
+  board.prepend(connections);
+  canvas.replaceChildren(board);
+  showGraphNode(selectedGraphNode);
+}
+
+function showGraphNode(id) {
+  const node = graphNodes.get(id);
+  selectedGraphNode = node?.id;
+  const detail = byId('graph-details');
+  detail.replaceChildren();
+  for (const button of byId('graph-canvas').querySelectorAll('[data-graph-node]')) {
+    button.setAttribute('aria-pressed', String(button.dataset.graphNode === selectedGraphNode));
+  }
+  if (!node) return;
+  detail.append(element('strong', node.title), element('p', [
+    graphStatus(node), planRoles[node.role], node.external && 'Outro objetivo',
+  ].filter(Boolean).join(' · ')));
+  if (node.dependencies.length) {
+    const list = element('ul');
+    for (const dependency of node.dependencies) {
+      const task = graphNodes.get(dependency);
+      list.append(element('li', (task?.title || 'Dependência indisponível no grafo') + (node.waitingOn.includes(dependency) ? ' · pendente' : ' · concluída')));
+    }
+    detail.append(element('p', 'Dependências'), list);
+  }
+  const link = element('a', 'Abrir tarefa na lista');
+  link.href = '#task-' + id;
+  detail.append(link);
 }
 
 function configurePreviewReload() {
@@ -568,6 +708,14 @@ document.addEventListener('change', async event => {
     byId('preview-url').value = savedPreviewUrl();
     setText('preview-feedback', savedPreviewUrl() ? 'Endereço salvo neste projeto.' : 'Salve o endereço local do projeto para abrir o preview.');
   }
+  if (input.id === 'graph-objective') {
+    resetGraph();
+    graphObjective = input.value;
+    graphRevision = revision;
+    byId('graph-refresh').disabled = !input.value;
+    if (input.value) void loadGraph(input.value);
+    else setText('graph-status', 'Selecione um objetivo para carregar o grafo.');
+  }
   if (input.name === 'objectiveId') activeDependencies();
   if (!input.dataset.task) return;
   input.disabled = true;
@@ -575,6 +723,11 @@ document.addEventListener('change', async event => {
     input.value = state.tasks.find(task => task.id === input.dataset.task)?.state;
     input.disabled = false;
   }
+});
+
+document.addEventListener('click', event => {
+  const graphNode = event.target.closest('[data-graph-node]');
+  if (graphNode) showGraphNode(graphNode.dataset.graphNode);
 });
 
 document.addEventListener('click', async event => {
@@ -732,6 +885,10 @@ function highlightSection() {
   }
 }
 byId('refresh-command').addEventListener('click', refresh);
+byId('graph-refresh').addEventListener('click', () => {
+  const objective = byId('graph-objective').value;
+  if (objective) void loadGraph(objective);
+});
 checksProject.addEventListener('change', () => {
   checksScript.disabled = true;
   updateCheckControls();
