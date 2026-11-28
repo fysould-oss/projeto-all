@@ -1,18 +1,14 @@
-# Centro de comando: baseline local
+# Centro de comando local no Chrome headless
 
-Capturado em 2026-11-28 contra `http://127.0.0.1:4187/command.html`, servidor
-local isolado com dados vazios. Nenhuma credencial, conversa ou snapshot privado
-foi incluído. Chrome headless 158.0.8127.37 foi usado nos mesmos viewports da
-linha de base estática.
+Capturado em 2026-11-28 com o servidor de teste em loopback, relay desligado e base descartável vazia.
 
-- [Desktop, 1440×1100](command-desktop.png)
-- [Mobile, 390×844](command-mobile.png)
+- [Desktop, 1440 × 1100](command-desktop.png)
+- [Janela estreita, 500 × 950](command-mobile.png)
 
-O painel abriu com estado vazio: 0 projetos, 0 objetivos, 0 tarefas em execução
-e 0 sessões observadas. A interface indicou servidor local conectado.
+O Chrome headless usado neste ambiente recorta imagens solicitadas abaixo de 500 px de largura. A captura de janela estreita da central usa 500 px para mostrar a largura inteira. A linha de base histórica de 390 px pode apresentar recorte. Essa evidência é da aplicação web. O APK Android requer validação em dispositivo.
 
-## Assets
+## Recursos
 
-Os requests abaixo foram medidos sequencialmente pelo mesmo host, separadamente
-da medição do `dist` estático. Todos retornaram HTTP 200; os bytes e timings estão
-em [command-baseline-metrics.json](command-baseline-metrics.json).
+A sondagem sequencial em loopback mediu 130,6 ms para quatro recursos que somam 49.368 bytes, incluindo o HTML do escritório vinculado. Os três arquivos próprios da tela somam 35.918 bytes. A linha de base do escritório mediu outro conjunto de recursos em outro servidor. Os valores não são uma comparação de tempo para interação, FPS ou consumo de CPU e RAM.
+
+[Dados por requisição](command-baseline-metrics.json) · [Linha de base do escritório](baseline.md)

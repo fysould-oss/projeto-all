@@ -57,7 +57,19 @@ function activeDependencies() {
 
 function render() {
   const getProject = id => state.projects.find(entry => entry.id === id)?.name;
-  fill('project-list', state.projects, project => row(project.name, project.path), 'Cadastre a pasta de um projeto para começar.');
+  const table = byId('projects-table');
+  if (state.projects.length) {
+    table.replaceChildren(...state.projects.map(project => {
+      const tr = element('tr');
+      tr.append(element('td', project.name), element('td', project.path));
+      return tr;
+    }));
+  }
+  setText('projects-count', state.projects.length + ' cadastrados');
+  setText('tasks-count', state.tasks.filter(task => !['done', 'cancelled'].includes(task.state)).length + ' abertas');
+  setText('coordinator-status', 'Planejamento manual');
+  prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff']]);
+  prepareGit('quality-list', [['check', 'Verificar alterações']]);
   fill('coordinator-detail', state.objectives, objective => {
     const tasks = state.tasks.filter(task => task.objectiveId === objective.id);
     return row(objective.title, [getProject(objective.projectId), tasks.filter(task => task.state === 'done').length + '/' + tasks.length + ' concluídas'].join(' · '));
@@ -73,16 +85,24 @@ function render() {
     options(select, state.objectives, objective => objective.title, 'Selecione um objetivo');
   }
   activeDependencies();
-  setText('metric-projects', state.projects.length);
-  setText('metric-objectives', state.objectives.length);
-  setText('metric-tasks', state.tasks.filter(task => task.state === 'running').length);
 }
 
 function renderTasks() {
   const getObjective = id => state.objectives.find(entry => entry.id === id)?.title;
   function taskRow(task) {
-    const dependencies = task.dependencies.map(id => state.tasks.find(entry => entry.id === id)?.title).filter(Boolean);
-    const item = row(task.title, [getObjective(task.objectiveId), dependencies.length ? 'Depende de ' + dependencies.join(', ') : 'Sem dependências'].join(' · '));
+    const item = row(task.title, getObjective(task.objectiveId));
+    item.id = 'task-' + task.id;
+    if (task.dependencies.length) {
+      const description = element('p', 'Depende de ');
+      for (const id of task.dependencies) {
+        const dependency = state.tasks.find(entry => entry.id === id);
+        if (!dependency) continue;
+        const link = element('a', dependency.title);
+        link.href = '#task-' + id;
+        description.append(link, ' ');
+      }
+      item.append(description);
+    }
     const select = element('select');
     select.setAttribute('aria-label', 'Estado de ' + task.title);
     select.dataset.task = task.id;
@@ -129,9 +149,9 @@ function prepareGit(id, actions) {
 function renderMetrics() {
   const { observed, resources } = state;
   if (observed) {
-    setText('activity-meta', ({ connected: 'Monitor conectado', starting: 'Monitor iniciando', unavailable: 'Monitor indispon?vel' })[observed.status] || observed.status);
+    setText('activity-meta', ({ connected: 'Monitor conectado', starting: 'Monitor iniciando', unavailable: 'Monitor indisponível' })[observed.status] || observed.status);
     const stats = [['Projetos', state.projects.length], ['Objetivos', state.objectives.length],
-      ['Tarefas em execu??o', state.tasks.filter(task => task.state === 'running').length], ['Sess?es observadas', observed.sessions]];
+      ['Tarefas em execução', state.tasks.filter(task => task.state === 'running').length], ['Sessões observadas', observed.sessions]];
     const signature = JSON.stringify(stats);
     const overview = byId('overview-stats');
     if (overview.dataset.signature !== signature) {
@@ -142,16 +162,14 @@ function renderMetrics() {
         return card;
       }));
     }
-    setText('activity-chart', observed.sessions + ' sess?es em ' + observed.projects + ' projetos observados.');
+    setText('activity-chart', observed.sessions + ' sessões em ' + observed.projects + ' projetos observados.');
   }
   if (!resources) return;
   const gib = bytes => (bytes / 2 ** 30).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' GiB';
-  setText('metric-memory', gib(resources.total - resources.free) + ' / ' + gib(resources.total));
-  setText('metric-cores', resources.cores);
   const used = Math.round(100 * (1 - resources.free / resources.total));
   setText('resource-percent', used + '% RAM');
   byId('resource-meter').style.width = used + '%';
-  setText('resource-summary', gib(resources.total - resources.free) + ' em uso ? ' + resources.cores + ' n?cleos l?gicos');
+  setText('resource-summary', gib(resources.total - resources.free) + ' em uso · ' + resources.cores + ' núcleos lógicos');
 }
 
 async function request(query = '', init) {

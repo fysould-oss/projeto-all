@@ -24,11 +24,11 @@ async function projectDirectory(value) {
   const resolved = resolve(projectPath);
   try {
     const details = await stat(resolved);
-    if (!details.isDirectory()) throw new TypeError('Informe uma pasta existente e acess?vel.');
+    if (!details.isDirectory()) throw new TypeError('Informe uma pasta existente e acessível.');
     await access(resolved, constants.R_OK);
   } catch (error) {
     if (error instanceof TypeError) throw error;
-    throw new TypeError('Informe uma pasta existente e acess?vel.');
+    throw new TypeError('Informe uma pasta existente e acessível.');
   }
   return resolved;
 }
@@ -67,8 +67,8 @@ export async function createStore(path) {
   let queue = Promise.resolve();
 
   async function mutate(action, data = {}) {
-    if (!ACTIONS.has(action)) throw new TypeError('A??o desconhecida.');
-    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new TypeError('Dados da a??o inv?lidos.');
+    if (!ACTIONS.has(action)) throw new TypeError('Ação desconhecida.');
+    if (!data || typeof data !== 'object' || Array.isArray(data)) throw new TypeError('Dados da ação inválidos.');
     const next = clone(state);
     const timestamp = now();
     let result;
@@ -79,26 +79,26 @@ export async function createStore(path) {
       next.projects.push(result);
     } else if (action === 'objective.create') {
       const projectId = id(data.projectId);
-      if (!projectId || !next.projects.some(item => item.id === projectId)) throw new Error('Projeto n?o encontrado.');
+      if (!projectId || !next.projects.some(item => item.id === projectId)) throw new Error('Projeto não encontrado.');
       result = { id: randomUUID(), projectId, title: text(data.title, 'title'), createdAt: timestamp };
       next.objectives.push(result);
     } else if (action === 'task.create') {
       const objectiveId = id(data.objectiveId);
-      if (!objectiveId || !next.objectives.some(item => item.id === objectiveId)) throw new Error('Objetivo n?o encontrado.');
+      if (!objectiveId || !next.objectives.some(item => item.id === objectiveId)) throw new Error('Objetivo não encontrado.');
       const dependencies = data.dependencies === undefined ? [] : data.dependencies;
-      if (!Array.isArray(dependencies) || dependencies.some(dep => !id(dep))) throw new TypeError('Selecione tarefas v?lidas como depend?ncias.');
-      if (new Set(dependencies).size !== dependencies.length) throw new TypeError('Selecione cada depend?ncia uma ?nica vez.');
-      if (dependencies.some(dep => !next.tasks.some(item => item.id === dep))) throw new Error('Depend?ncia n?o encontrada.');
+      if (!Array.isArray(dependencies) || dependencies.some(dep => !id(dep))) throw new TypeError('Selecione tarefas válidas como dependências.');
+      if (new Set(dependencies).size !== dependencies.length) throw new TypeError('Selecione cada dependência uma única vez.');
+      if (dependencies.some(dep => !next.tasks.some(item => item.id === dep))) throw new Error('Dependência não encontrada.');
       result = { id: randomUUID(), objectiveId, title: text(data.title, 'title'), dependencies: [...dependencies], state: 'pending', createdAt: timestamp, updatedAt: timestamp };
       next.tasks.push(result);
     } else {
       const taskId = id(data.id);
       const task = next.tasks.find(item => item.id === taskId);
-      if (!task) throw new Error('Tarefa n?o encontrada.');
-      if (!STATES.has(data.state)) throw new TypeError('Estado de tarefa inv?lido.');
+      if (!task) throw new Error('Tarefa não encontrada.');
+      if (!STATES.has(data.state)) throw new TypeError('Estado de tarefa inválido.');
       if (data.state === 'running') {
         const deps = next.tasks.filter(item => task.dependencies.includes(item.id));
-        if (deps.some(item => item.state !== 'done')) throw new Error('Conclua as depend?ncias antes de iniciar esta tarefa.');
+        if (deps.some(item => item.state !== 'done')) throw new Error('Conclua as dependências antes de iniciar esta tarefa.');
       }
       task.state = data.state;
       task.updatedAt = timestamp;
