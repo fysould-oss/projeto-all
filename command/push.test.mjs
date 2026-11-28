@@ -5,7 +5,21 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { preparePush, executePush, githubRepository, summarizeGitHubChecks } from './push.mjs';
+import { preparePush, executePush, githubRepository, summarizeGitHubChecks, summarizeGitHubStatuses } from './push.mjs';
+
+test('projects external commit statuses without arbitrary URLs and distinguishes an empty result', () => {
+  const sha = 'a'.repeat(40);
+  assert.equal(summarizeGitHubStatuses({ sha: 'b'.repeat(40), total_count: 0, statuses: [] }, sha), null);
+  assert.deepEqual(summarizeGitHubStatuses({ sha, total_count: 0, statuses: [], state: 'pending' }, sha),
+    { total: 0, state: 'empty', contexts: [] });
+  const statuses = [
+    { context: 'CI/build', state: 'failure', target_url: 'https://example.invalid/private' },
+    { context: 'CI/build', state: 'success' },
+    { context: 'CI/test', state: 'pending' },
+  ];
+  assert.deepEqual(summarizeGitHubStatuses({ sha, total_count: 2, statuses, state: 'failure' }, sha),
+    { total: 2, state: 'failure', contexts: [{ name: 'CI/build', state: 'failure' }, { name: 'CI/test', state: 'pending' }] });
+});
 
 test('summarizes check runs and distinguishes empty, partial, and unavailable results', () => {
   assert.equal(summarizeGitHubChecks(null), null);

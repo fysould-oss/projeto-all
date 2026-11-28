@@ -122,6 +122,22 @@ export function summarizeGitHubChecks(payload) {
   return { ...checks, partial: payload.check_runs.length !== checks.total };
 }
 
+export function summarizeGitHubStatuses(payload, sha) {
+  if (payload?.sha !== sha || !Number.isSafeInteger(payload?.total_count)
+    || payload.total_count < 0 || !Array.isArray(payload.statuses)) return null;
+  if (!payload.total_count) return { total: 0, state: 'empty', contexts: [] };
+  const states = ['success', 'failure', 'error', 'pending'];
+  const contexts = [];
+  const seen = new Set();
+  for (const status of payload.statuses) {
+    if (typeof status?.context !== 'string' || !status.context.trim()
+      || seen.has(status.context) || !states.includes(status.state)) continue;
+    seen.add(status.context);
+    contexts.push({ name: status.context.trim().slice(0, 150), state: status.state });
+  }
+  return { total: payload.total_count, state: states.includes(payload.state) ? payload.state : 'unknown', contexts };
+}
+
 export async function githubPullRequests(project) {
   const cwd = await repository(project);
   const branch = (await git(cwd, ['branch', '--show-current'])).trim();
@@ -147,17 +163,19 @@ export async function githubPullRequests(project) {
       const shaFor = pull => /^[a-f0-9]{40}$/.test(pull.head?.sha ?? '') ? pull.head.sha : '';
       const shas = [...new Set(safePulls.map(shaFor).filter(Boolean))].slice(0, 4);
       const results = await Promise.all(shas.map(async sha => {
-        const url = new URL(api);
-        url.pathname = url.pathname.replace(/\/pulls$/, '/commits/' + sha + '/check-runs');
-        url.search = 'filter=latest&per_page=100';
-        try { return [sha, summarizeGitHubChecks(await fetchGitHubJson(url))]; }
-        catch { return [sha, null]; }
+        const commit = new URL('/repos/' + entry.name + '/commits/' + sha + '/', api);
+        const checkUrl = new URL('check-runs?filter=latest&per_page=100', commit);
+        const statusUrl = new URL('status?per_page=10', commit);
+        const [checkRuns, statuses] = await Promise.all([
+          fetchGitHubJson(checkUrl).catch(() => null), fetchGitHubJson(statusUrl).catch(() => null),
+        ]);
+        return [sha, { checks: summarizeGitHubChecks(checkRuns), statuses: summarizeGitHubStatuses(statuses, sha) }];
       }));
-      const checks = new Map(results);
+      const ci = new Map(results);
       entry.pulls = safePulls.map(pull => {
         const sha = shaFor(pull);
         return { number: pull.number, draft: pull.draft === true, url: base + '/pull/' + pull.number,
-          sha, checks: checks.get(sha) ?? null };
+          sha, checks: ci.get(sha)?.checks ?? null, statuses: ci.get(sha)?.statuses ?? null };
       });
     }
   } catch {}

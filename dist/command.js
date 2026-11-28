@@ -1332,6 +1332,16 @@ document.addEventListener('click', async event => {
           output.append(' · ' + checks.total + ' checks' + (checks.partial ? ' (parcial)' : '') + (summary ? ' · ' + summary : ''));
         }
         output.append(' · ', linkTo('Ver checks', pull.url + '/checks'));
+        const statuses = pull.statuses;
+        const statusLabels = { success: 'aprovado', pending: 'pendente', failure: 'falhou', error: 'erro', unknown: 'desconhecido' };
+        if (!statuses) output.append('\n  CI externo indisponível.');
+        else if (!statuses.total) output.append('\n  Sem status de CI externo reportado.');
+        else {
+          const contexts = statuses.contexts.map(context => context.name + ' (' + statusLabels[context.state] + ')');
+          output.append('\n  CI externo: ' + statusLabels[statuses.state] + ' (' + statuses.total + ')');
+          if (contexts.length) output.append(' · ' + contexts.join(', '));
+          if (contexts.length < statuses.total) output.append(' · Lista parcial');
+        }
       }
     } else {
       output.textContent = result.output || (result.passed ? 'Nenhum problema de espaço em branco nas alterações rastreadas.' : 'Nenhuma alteração rastreada.');
