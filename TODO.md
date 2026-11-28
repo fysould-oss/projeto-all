@@ -80,3 +80,4 @@
 - [ ] Validar fluxos reais em desktop, tablet, ultrawide e Android, inclusive perda de conexão e recuperação.
 - [x] Registrar bytes e tempos de transfer?ncias HTTP do escrit?rio e da central.
 - [ ] Medir carregamento, interação, CPU, RAM, tamanho dos recursos e latência. Documentar instalação e publicação.
+- [x] Comparar carregamento e tamanho dos recursos da central em loopback nas larguras de 390 a 2560 px.
