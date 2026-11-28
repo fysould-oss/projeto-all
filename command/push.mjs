@@ -93,6 +93,20 @@ export async function listRemotes(project) {
   return remotes(await repository(project));
 }
 
+export async function listBranches(project) {
+  const cwd = await repository(project);
+  const current = (await git(cwd, ['branch', '--show-current'])).trim();
+  const format = '%(refname:lstrip=2)%00%(objectname:short)%00%(upstream:short)%00%(upstream:trackshort)';
+  const raw = await git(cwd, ['for-each-ref', '--sort=refname', '--sort=-HEAD', '--count=101', '--format=' + format, 'refs/heads/']);
+  const rows = raw.split(/\r?\n/).filter(Boolean);
+  const branches = rows.slice(0, 100).map(row => {
+    const [name, sha, upstream, tracking] = row.split('\0');
+    return { name, sha, upstream, tracking };
+  });
+  const detachedSha = current ? '' : (await git(cwd, ['rev-parse', '--short', 'HEAD'])).trim();
+  return { current, detachedSha, truncated: rows.length > 100, branches };
+}
+
 export function githubRepository(remote) {
   const match = /^(?:https:\/\/github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([a-z\d-]+)\/([a-z\d_.-]+)\/?$/i.exec(remote);
   if (!match) return null;

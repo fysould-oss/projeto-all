@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { preparePush, executePush, githubRepository, summarizeGitHubChecks, summarizeGitHubStatuses,
+import { preparePush, executePush, githubRepository, listBranches, summarizeGitHubChecks, summarizeGitHubStatuses,
   summarizeGitHubReviews, summarizeGitHubWorkflows } from './push.mjs';
 
 test('projects workflow runs for the exact PR commit and rejects invalid run data', () => {
@@ -101,6 +101,22 @@ async function fixture(t) {
   await run(root, ['remote', 'add', 'origin', bare]);
   return { root, bare };
 }
+test('lists active, untracked, upstream and detached branch state from Git', async t => {
+  const { root } = await fixture(t);
+  await run(root, ['push', '-u', 'origin', 'main']);
+  await run(root, ['branch', 'feature/local']);
+  await run(root, ['commit', '--allow-empty', '-m', 'local']);
+  const attached = await listBranches(root);
+  assert.equal(attached.current, 'main');
+  assert.equal(attached.branches[0].name, 'main');
+  assert.equal(attached.branches[0].upstream, 'origin/main');
+  assert.equal(attached.branches[0].tracking, '>');
+  assert.equal(attached.branches.find(branch => branch.name === 'feature/local').upstream, '');
+  await run(root, ['checkout', '--detach', 'HEAD']);
+  const detached = await listBranches(root);
+  assert.equal(detached.current, '');
+  assert.equal(detached.detachedSha, attached.branches[0].sha);
+});
 test('creates a branch and advances it via fast-forward on a local bare remote', async t => {
   const { root, bare } = await fixture(t);
   const prepared = await preparePush(root, 'origin');

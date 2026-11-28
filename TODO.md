@@ -45,6 +45,7 @@
 - [x] Mostrar também o status combinado e os contextos públicos de CI externo para o mesmo commit.
 - [x] Resumir revisões públicas de PR por commit, incluindo pedidos de alterações e decisões anteriores.
 - [x] Listar execuções públicas do GitHub Actions para o commit e abrir o diff hospedado do PR.
+- [x] Consultar branches locais, branch ativa, HEAD destacado e relação com o upstream conhecido localmente.
 - [ ] Validar previews, captura visual e observabilidade por projeto.
 - [x] Abrir aplicações locais em quadro isolado, com URL por projeto e dimensões ajustáveis.
 - [ ] Integrar o controle móvel ao transporte privado autenticado.

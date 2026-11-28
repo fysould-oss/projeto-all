@@ -40,6 +40,12 @@ test('persists workflow, gates dependent tasks and inspects a real Git worktree'
 
   assert.equal((await post('project.create', { name: 'Demo', path: folder }, 'https://example.invalid')).status, 403);
   const { projects: [project] } = await mutate('project.create', { name: 'Demo', path: folder });
+  const branchResponse = await fetch(origin + '/?view=branches&project=' + project.id);
+  assert.equal(branchResponse.status, 200);
+  const branchState = await branchResponse.json();
+  assert.equal(branchState.current, git('branch', '--show-current').toString().trim());
+  assert.equal(branchState.branches[0].name, branchState.current);
+  assert.equal((await fetch(origin + '/?view=branches&project=missing')).status, 404);
   const { objectives: [objective] } = await mutate('objective.create', { projectId: project.id, title: 'Entrega' });
   const { tasks: [first] } = await mutate('task.create', { objectiveId: objective.id, title: 'Verificar', dependencies: [] });
   const { tasks } = await mutate('task.create', { objectiveId: objective.id, title: 'Revisar', dependencies: [first.id] });

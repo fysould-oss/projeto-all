@@ -231,7 +231,7 @@ function render() {
   setText('tasks-count', state.tasks.filter(task => !['done', 'cancelled'].includes(task.state)).length + ' abertas');
   setText('coordinator-status', 'Rascunhos de plano e acompanhamento');
   prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff completo'], ['staged', 'Ver diff preparado'],
-    ['github-pulls', 'Consultar PRs no GitHub']]);
+    ['branches', 'Listar branches'], ['github-pulls', 'Consultar PRs no GitHub']]);
   renderApprovals();
   renderPreviewPanel();
   renderGraphPanel();
@@ -1301,7 +1301,16 @@ document.addEventListener('click', async event => {
     const query = new URLSearchParams({ view: button.dataset.gitView, project });
     const result = await request('?' + query);
     if (projectSelect.value !== project) return;
-    if (button.dataset.gitView === 'github-pulls') {
+    if (button.dataset.gitView === 'branches') {
+      const trackingLabels = { '=': 'sincronizada', '>': 'à frente', '<': 'atrás', '<>': 'divergente' };
+      const heading = result.current ? 'Branch ativa: ' + result.current : 'HEAD destacado: ' + result.detachedSha;
+      const branches = result.branches.map(branch => {
+        const tracking = branch.upstream ? ' · ' + branch.upstream + ' (' + (trackingLabels[branch.tracking] || 'referência indisponível') + ')' : ' · sem upstream';
+        return (branch.name === result.current ? '* ' : '  ') + branch.name + ' · ' + branch.sha + tracking;
+      });
+      output.textContent = [heading, ...(branches.length ? branches : ['Nenhuma branch com commit local.']),
+        ...(result.truncated ? ['Mostrando as primeiras 100 branches.'] : [])].join('\n');
+    } else if (button.dataset.gitView === 'github-pulls') {
       const [repository] = result.repositories;
       if (!repository) {
         output.textContent = result.branch ? 'Nenhum remoto GitHub compatível selecionado pelo Git.' : 'Nenhuma branch local ativa.';
