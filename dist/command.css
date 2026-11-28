@@ -25,7 +25,7 @@
 }
 html {
   min-width:320px;
-  scroll-behavior:smooth;
+  scroll-behavior:var(--scroll-motion, smooth);
 }
 body {
   margin:0;
@@ -792,7 +792,7 @@ td:first-child {
 .observation-metric { display:grid; gap:.45rem; }
 .observation-metric > div:first-child { display:flex; justify-content:space-between; gap:.5rem; color:var(--muted); font-size:.76rem; }
 .observation-bar { height:.6rem; overflow:hidden; border-radius:999px; background:var(--surface-3); }
-.observation-bar i { display:block; height:100%; width:0; background:var(--cyan); transition:width .2s ease; }
+.observation-bar i { display:block; height:100%; width:0; background:var(--cyan); transition:width var(--meter-motion, .2s) ease; }
 .observation-details { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.65rem; grid-column:1 / -1; margin:0; }
 .observation-details div { border-top:1px solid var(--line-soft); padding-top:.5rem; }
 .observation-details dt { color:var(--muted); font-size:.7rem; }
@@ -823,7 +823,10 @@ section[id] { scroll-margin-top: 6rem; }
 .job-status { color: var(--accent); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
 .job-files, .job-result { overflow-wrap: anywhere; }
 .activity-chart { min-height: 5rem; height: auto; align-items: center; color: var(--muted); }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+:root[data-motion="reduce"] { --scroll-motion: auto; --meter-motion: 0s; }
+@media (prefers-reduced-motion: reduce) {
+  :root { --scroll-motion: auto; --meter-motion: 0s; }
+}
 
 .task-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 0.4rem; font-size: 0.7rem; }
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(8rem, 1fr); gap: 0.5rem; overflow-x: auto; }

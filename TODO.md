@@ -69,6 +69,7 @@
 - [x] Persistir tema, densidade e tamanho do texto, com exportação, importação e restauração dos padrões.
 - [x] Salvar visualizações nomeadas e alternar entre presets no navegador.
 - [x] Escolher a seção inicial nas preferências e presets, respeitando links diretos.
+- [x] Reduzir o movimento da central conforme a preferência do navegador ou a configuração salva.
 - [x] Recolher a barra lateral do desktop preservando os atalhos, com largura configurável e persistente.
 - [x] Buscar projetos, objetivos e tarefas pela barra superior ou pelo atalho de teclado.
 - [x] Abrir seções e solicitar atualização dos dados locais pela paleta de comandos.

@@ -2026,8 +2026,8 @@ function applyWidgetSettings(values) {
     .map(({ id, visible, wide }) => ({ id, visible, wide }));
   renderWidgetSettings();
 }
-const displayControls = ['theme', 'density', 'fontSize', 'sidebarWidth', 'homeSection'].map(key => [key, byId(key)]);
-const optionalDisplayKeys = new Set(['sidebarWidth', 'homeSection']);
+const displayControls = ['theme', 'density', 'fontSize', 'sidebarWidth', 'homeSection', 'motion'].map(key => [key, byId(key)]);
+const optionalDisplayKeys = new Set(['sidebarWidth', 'homeSection', 'motion']);
 const displayDefaults = Object.fromEntries(displayControls.map(([key, control]) => [key, control.value]));
 const validDisplayValue = (control, value) => Array.from(control.options).some(option => option.value === value);
 function applyDisplay(values) {
