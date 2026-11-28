@@ -17,12 +17,12 @@ function samePath(a, b) {
   return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
 }
 
-async function git(cwd, args, message = 'Não foi possível consultar o estado Git.') {
+async function git(cwd, args, message = 'Não foi possível consultar o estado Git.', maxBuffer = 256 * 1024) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('GIT_')));
   try {
     const { stdout } = await execute('git', [
       '--literal-pathspecs', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + process.execPath, ...args,
-    ], { cwd, env, windowsHide: true, timeout: 5000, maxBuffer: 256 * 1024 });
+    ], { cwd, env, windowsHide: true, timeout: 5000, maxBuffer });
     return stdout;
   } catch {
     throw new Error(message);
@@ -56,6 +56,23 @@ export async function listFiles(project) {
   const cwd = repoPath(project);
   await ensureRoot(cwd);
   return parseStatus(await git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--']));
+}
+
+export async function listCommittedPaths(project, { query = '', offset = 0, revision = '' } = {}) {
+  if (typeof query !== 'string' || query.length > 120 || !Number.isSafeInteger(offset) || offset < 0 || offset > 200000) {
+    throw new Error('Filtro ou página de arquivos inválida.');
+  }
+  const cwd = repoPath(project);
+  await ensureRoot(cwd);
+  const tree = (await git(cwd, ['--no-replace-objects', 'rev-parse', '--verify', 'HEAD^{tree}'], 'Não foi possível localizar uma árvore no HEAD.')).trim();
+  if (revision && revision !== tree) throw new Error('O HEAD mudou. Faça uma nova busca para atualizar a lista.');
+  const raw = await git(cwd, ['--no-replace-objects', 'ls-tree', '-r', '--name-only', '-z', tree],
+    'Não foi possível listar a árvore Git dentro do limite de leitura.', 2 * 1024 * 1024);
+  const needle = query.trim().toLowerCase();
+  const matches = raw.split('\0').filter(path => path && path.toLowerCase().includes(needle));
+  const pageSize = 60;
+  const paths = matches.slice(offset, offset + pageSize);
+  return { revision: tree, paths, total: matches.length, next: offset + pageSize < matches.length ? offset + pageSize : null };
 }
 
 export async function changeIndex(project, action, path) {

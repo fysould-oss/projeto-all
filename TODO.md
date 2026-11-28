@@ -47,6 +47,7 @@
 - [x] Listar execuções públicas do GitHub Actions para o commit e abrir o diff hospedado do PR.
 - [x] Consultar branches locais, branch ativa, HEAD destacado e relação com o upstream conhecido localmente.
 - [x] Consultar tags e metadados dos stashes locais.
+- [x] Localizar caminhos no último commit do projeto com filtro e paginação vinculada à árvore Git.
 - [ ] Validar previews, captura visual e observabilidade por projeto.
 - [x] Abrir aplicações locais em quadro isolado, com URL por projeto e dimensões ajustáveis.
 - [ ] Integrar o controle móvel ao transporte privado autenticado.

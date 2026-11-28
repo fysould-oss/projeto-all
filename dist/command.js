@@ -387,7 +387,79 @@ function prepareGit(id, actions) {
     files.dataset.gitFiles = '';
     files.append(element('p', 'Selecione um projeto para listar os caminhos alterados.', 'empty-state'));
     target.append(feedback, files);
+    prepareCommittedPaths(target, select);
   }
+}
+
+function prepareCommittedPaths(target, projectSelect) {
+  const panel = element('details', undefined, 'panel display-settings');
+  const form = element('form', undefined, 'inspection-controls');
+  const label = element('label', 'Filtrar por caminho ');
+  const input = element('input');
+  input.type = 'search';
+  input.maxLength = 120;
+  label.append(input);
+  const search = element('button', 'Consultar HEAD', 'button button-quiet');
+  search.type = 'submit';
+  const next = element('button', 'Próxima página', 'button button-quiet');
+  next.type = 'button';
+  next.hidden = true;
+  form.append(label, search, next);
+  const status = element('p', 'Selecione um projeto e consulte os arquivos do último commit.');
+  status.setAttribute('role', 'status');
+  const output = element('pre');
+  output.dataset.gitOutput = '';
+  panel.append(element('summary', 'Arquivos no commit atual'), form, status, output);
+  target.append(panel);
+
+  let sequence = 0;
+  let query = '';
+  let page;
+  projectSelect.addEventListener('change', () => {
+    sequence += 1;
+    page = undefined;
+    next.hidden = true;
+    output.textContent = '';
+    status.textContent = 'Consulte os arquivos do projeto selecionado.';
+  });
+  async function loadPaths(useNext) {
+    const project = projectSelect.value;
+    if (!project) {
+      status.textContent = 'Selecione um projeto cadastrado.';
+      return;
+    }
+    const id = ++sequence;
+    const params = new URLSearchParams({ view: 'committed-paths', project, q: query });
+    const offset = useNext ? page.next : 0;
+    if (useNext) {
+      params.set('offset', offset);
+      params.set('revision', page.revision);
+    }
+    next.hidden = true;
+    status.textContent = 'Consultando arquivos…';
+    try {
+      const result = await request('?' + params);
+      if (sequence !== id) return;
+      page = result;
+      status.textContent = result.paths.length
+        ? (offset + 1) + '–' + (offset + result.paths.length) + ' de ' + result.total + ' caminhos'
+        : 'Nenhum caminho encontrado.';
+      output.textContent = result.paths.map(path => /[\u0000-\u001f\u007f]/.test(path) ? JSON.stringify(path) : path).join('\n');
+      next.hidden = result.next == null;
+    } catch (error) {
+      if (sequence !== id) return;
+      output.textContent = '';
+      status.textContent = error.message;
+    }
+  }
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    query = input.value;
+    void loadPaths(false);
+  });
+  next.addEventListener('click', () => {
+    if (!next.hidden && page?.next != null) void loadPaths(true);
+  });
 }
 
 function renderGitFiles(group, project, files) {

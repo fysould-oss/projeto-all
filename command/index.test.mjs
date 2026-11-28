@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { listFiles, changeIndex } from './index.mjs';
+import { listFiles, changeIndex, listCommittedPaths } from './index.mjs';
 
 function run(cwd, args) {
   return new Promise((resolve, reject) => {
@@ -28,6 +28,26 @@ async function fixture(t) {
   await run(dir, ['commit', '-m', 'base']);
   return dir;
 }
+
+test('paginates committed paths and detects a changed tree between pages', async t => {
+  const dir = await fixture(t);
+  await Promise.all(Array.from({ length: 61 }, (_, index) =>
+    writeFile(join(dir, 'Relatório ' + String(index).padStart(2, '0') + '.txt'), 'private contents')));
+  await run(dir, ['add', '--all']);
+  await run(dir, ['commit', '-m', 'paths']);
+  await writeFile(join(dir, 'Relatório draft.txt'), 'uncommitted');
+  await run(dir, ['add', 'Relatório draft.txt']);
+  const first = await listCommittedPaths(dir, { query: 'RELATÓRIO' });
+  assert.equal(first.total, 61);
+  assert.equal(first.paths.length, 60);
+  assert.equal(first.paths[0], 'Relatório 00.txt');
+  assert.doesNotMatch(JSON.stringify(first), /private contents|draft/);
+  const last = await listCommittedPaths(dir, { query: 'relatório', offset: first.next, revision: first.revision });
+  assert.deepEqual(last.paths, ['Relatório 60.txt']);
+  assert.equal(last.next, null);
+  await run(dir, ['commit', '-m', 'draft']);
+  await assert.rejects(() => listCommittedPaths(dir, { offset: first.next, revision: first.revision }), /HEAD mudou/);
+});
 
 test('lists and stages/unstages without changing worktree content', async t => {
   const dir = await fixture(t);
