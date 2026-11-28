@@ -1,14 +1,14 @@
-﻿# Centro de comando
+# Centro de comando
 
 ## 1. Inventário e linha de base
 
 - [ ] Registrar capturas e métricas do escritório original em desktop e celular.
-- [ ] Revisar Android, Worker, monitor, catálogo e PRs #7, #9 e #10. O #10 integra os pilotos de execução em worktree e é a referência para integração futura.
+- [x] Revisar Android, Worker, monitor, catálogo e PRs #7, #9 e #10. O #10 integra os pilotos de execução em worktree e é a referência para integração futura.
 
 ## 2. Primeira entrega local
 
-- [ ] Persistir cadastro de projetos, objetivos, tarefas, dependências e eventos de auditoria no computador.
-- [ ] Conectar dashboard, lista de tarefas, Git de leitura e observabilidade ao servidor local.
+- [x] Persistir cadastro de projetos, objetivos, tarefas, dependências e eventos de auditoria no computador.
+- [x] Conectar dashboard, lista de tarefas, Git de leitura e observabilidade ao servidor local.
 - [ ] Preservar escritório, catálogo, APK e publicação existentes.
 - [ ] Verificar persistência, dependências, restrições de origem e responsividade.
 
