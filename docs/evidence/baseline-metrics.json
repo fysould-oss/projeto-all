@@ -1,0 +1,21 @@
+{
+  "capturedAt": "2026-11-28T05:23:31.032Z",
+  "server": "http://127.0.0.1:8765/",
+  "serverType": "static dist only",
+  "browser": "Google Chrome 158.0.8127.37 headless",
+  "viewport": {"desktop": "1440x1100", "mobile": "390x844"},
+  "totalSequentialMs": 239.9,
+  "assets": [
+    {"asset":"index.html","status":200,"bytes":13450,"ms":135.0},
+    {"asset":"style.css?v=office-living-3","status":200,"bytes":39843,"ms":6.0},
+    {"asset":"rules.js?v=lobby-3","status":200,"bytes":13689,"ms":3.2},
+    {"asset":"online.js?v=lobby-3","status":200,"bytes":1071,"ms":2.2},
+    {"asset":"app.js?v=office-living-3","status":200,"bytes":45901,"ms":2.6},
+    {"asset":"office-floor.webp","status":200,"bytes":186492,"ms":3.8},
+    {"asset":"office-lobby.png","status":200,"bytes":2331629,"ms":66.5},
+    {"asset":"office-mobile.webp","status":200,"bytes":82974,"ms":4.9},
+    {"asset":"office-sprites.png","status":200,"bytes":1481222,"ms":10.3},
+    {"asset":"progress.json","status":200,"bytes":5375,"ms":2.5},
+    {"asset":"projects.json","status":200,"bytes":1015,"ms":1.7}
+  ]
+}
