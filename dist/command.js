@@ -1089,6 +1089,37 @@ let checksSignature;
 let checksRequest = 0;
 let checksPending = false;
 
+function checkLog(run, previous) {
+  const panel = element('details');
+  panel.dataset.checkLog = run.id;
+  panel.open = previous?.open || false;
+  const label = element('label', 'Filtrar linhas da saída ');
+  const input = element('input');
+  input.type = 'search';
+  input.maxLength = 120;
+  input.value = previous?.query || '';
+  label.append(input);
+  const status = element('p');
+  status.setAttribute('role', 'status');
+  const output = element('pre', '', 'check-output');
+  panel.append(element('summary', 'Saída'), label, status, output);
+  function filter() {
+    const query = input.value.trim().toLowerCase();
+    if (!query) {
+      output.textContent = run.output;
+      status.textContent = '';
+      return;
+    }
+    const matching = run.output.split(/\r?\n/).filter(line => line.toLowerCase().includes(query));
+    output.textContent = matching.join('\n');
+    status.textContent = matching.length ? matching.length + (matching.length === 1 ? ' linha encontrada.' : ' linhas encontradas.')
+      : 'Nenhuma linha encontrada.';
+  }
+  input.addEventListener('input', filter);
+  filter();
+  return panel;
+}
+
 function updateCheckControls() {
   checksStart.disabled = checksPending || checksScript.disabled || !checksScript.value;
 }
@@ -1113,15 +1144,22 @@ async function refreshChecks() {
     const available = scripts.map(script => ({ id: script }));
     if (checksSignature !== signature) {
       checksSignature = signature;
+      const logs = new Map([...byId('checks-runs').querySelectorAll('[data-check-log]')].map(panel => {
+        const input = panel.querySelector('input');
+        return [panel.dataset.checkLog, { open: panel.open, query: input.value, focused: input === document.activeElement,
+          start: input.selectionStart, end: input.selectionEnd, scroll: panel.querySelector('pre').scrollTop }];
+      }));
+      let focus;
       options(checksScript, available, script => script.id, 'Selecione um script');
       fill('checks-runs', runs, run => {
         const duration = run.durationMs == null ? '' : (run.durationMs / 1000).toFixed(1) + ' s';
         const status = labels[run.status] || ({ passed: 'Aprovado', timed_out: 'Tempo limite' })[run.status] || run.status;
         const item = row(run.script, [status, duration].filter(Boolean).join(' · '));
         if (run.output) {
-          const logs = element('details');
-          logs.append(element('summary', 'Saída'), element('pre', run.output, 'check-output'));
-          item.append(logs);
+          const previous = logs.get(run.id);
+          const log = checkLog(run, previous);
+          if (previous?.focused) focus = { input: log.querySelector('input'), ...previous };
+          item.append(log);
         }
         if (run.status === 'running') {
           const cancel = element('button', 'Interromper', 'button button-quiet');
@@ -1131,6 +1169,14 @@ async function refreshChecks() {
         }
         return item;
       }, 'Nenhuma execução neste projeto.');
+      for (const panel of byId('checks-runs').querySelectorAll('[data-check-log]')) {
+        const previous = logs.get(panel.dataset.checkLog);
+        if (previous?.scroll) panel.querySelector('pre').scrollTop = previous.scroll;
+      }
+      if (focus) {
+        focus.input.focus({ preventScroll: true });
+        focus.input.setSelectionRange(focus.start, focus.end);
+      }
     }
     checksScript.disabled = !available.length;
     updateCheckControls();
