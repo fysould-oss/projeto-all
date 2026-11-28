@@ -676,6 +676,7 @@ td:first-child {
 .git-file-row code { flex: 1 1 10rem; min-width: 0; overflow-wrap: anywhere; }
 .git-file-status { color: var(--muted); font-size: 0.75rem; }
 .git-file-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.approval-push-target { overflow-wrap: anywhere; }
 .project-checks { border-top: 1px solid var(--line-soft); }
 .project-checks .inspection-controls { align-items: end; }
 .project-checks label { display: grid; gap: 0.25rem; min-width: 0; }

@@ -27,6 +27,7 @@
 - [x] Executar scripts declarados de lint, testes, build e tipos em projetos Node, com saída limitada, estado, duração e interrupção pela central.
 - [ ] Integrar stage, commit, push, PR, checks e deploy com confirmação e recuperação.
 - [x] Listar e preparar mudanças por arquivo, retirar mudanças do índice e aprovar o commit da árvore preparada.
+- [x] Publicar a branch atual mediante aprovação que vincula o destino e os commits local e remoto.
 - [ ] Validar previews, captura visual e observabilidade por projeto.
 - [ ] Integrar o controle móvel ao transporte privado autenticado.
 

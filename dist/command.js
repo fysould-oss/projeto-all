@@ -12,7 +12,7 @@ const modelTiers = { economy: 'econômico', balanced: 'equilibrado', advanced: '
 const actionLabels = {
   'project.create': 'Projeto cadastrado', 'objective.create': 'Objetivo criado',
   'task.create': 'Tarefa criada', 'task.state': 'Estado da tarefa atualizado',
-  'objective.plan': 'Tarefas do plano registradas', 'approval.request': 'Aprovação solicitada',
+  'objective.plan': 'Tarefas do plano registradas', 'approval.request': 'Aprovação solicitada', 'approval.requestPush': 'Aprovação de push solicitada',
   'approval.approve': 'Aprovação encaminhada', 'approval.reject': 'Aprovação rejeitada',
   'approval.edit': 'Aprovação editada', 'git.stage': 'Caminho preparado', 'git.unstage': 'Caminho retirado do índice',
   'approval.completed': 'Commit registrado',
@@ -238,18 +238,26 @@ function renderApprovals() {
     const status = { pending: 'Pendente', rejected: 'Rejeitada', executing: 'Em execução', completed: 'Concluída', failed: 'Falhou', expired: 'Expirada' }[approval.state] || approval.state;
     const item = element('article', undefined, 'approval-card');
     const heading = element('div', undefined, 'approval-card-heading');
-    heading.append(element('strong', approval.message || 'Commit sem mensagem'), element('span', status, 'approval-status approval-' + approval.state));
+    const isPush = approval.kind === 'git.push';
+    heading.append(element('strong', isPush ? 'Push para ' + (approval.remote || 'remote') : (approval.message || 'Commit sem mensagem')), element('span', status, 'approval-status approval-' + approval.state));
     item.append(heading);
     const impact = [project?.name || 'Projeto não encontrado', approval.branch && 'branch ' + approval.branch,
-      approval.base && 'base ' + approval.base.slice(0, 12), approval.paths?.length ? approval.paths.length + ' caminho(s)' : 'impacto não informado'].filter(Boolean).join(' · ');
+      !isPush && approval.base && 'base ' + approval.base.slice(0, 12), approval.paths?.length ? approval.paths.length + ' caminho(s)' : 'Sem diferenças de arquivos'].filter(Boolean).join(' · ');
     item.append(element('p', impact, 'approval-impact'), element('p', approval.reason || 'Sem motivo informado.', 'approval-reason'));
+    if (isPush) item.append(element('p', [
+      'Destino ' + approval.destination, 'Commit local ' + approval.head,
+      approval.base ? 'Commit remoto ' + approval.base : 'Cria uma branch no remoto',
+    ].join(' · '), 'approval-push-target'));
     if (approval.paths?.length) item.append(element('p', 'Arquivos: ' + approval.paths.join(', '), 'approval-paths'));
     if (approval.commit) item.append(element('p', 'Commit: ' + approval.commit, 'approval-commit'));
     if (approval.error) item.append(element('p', approval.error, 'approval-error'));
     if (approval.expiresAt) item.append(element('p', 'Expira em ' + new Date(approval.expiresAt).toLocaleString('pt-BR'), 'approval-expiry'));
     if (approval.state === 'pending') {
-      const diffButton = element('button', 'Ver diff da solicitação', 'button button-quiet'); diffButton.type = 'button'; diffButton.dataset.approvalDiff = approval.id; item.append(diffButton);
-      const diffOutput = element('pre', '', 'approval-diff'); diffOutput.dataset.approvalDiffOutput = approval.id; diffOutput.hidden = true; item.append(diffOutput);
+      if (isPush) item.append(element('p', 'O push publica os commits até o hash revisado. Para reverter o conteúdo publicado, crie e aprove um novo commit de reversão.', 'approval-impact'));
+      if (!isPush) {
+        const diffButton = element('button', 'Ver diff da solicitação', 'button button-quiet'); diffButton.type = 'button'; diffButton.dataset.approvalDiff = approval.id; item.append(diffButton);
+        const diffOutput = element('pre', '', 'approval-diff'); diffOutput.dataset.approvalDiffOutput = approval.id; diffOutput.hidden = true; item.append(diffOutput);
+      }
       const edit = element('div', undefined, 'approval-edit');
       const message = element('input'); message.value = approval.message || ''; message.maxLength = 200; message.dataset.approvalMessage = approval.id; message.setAttribute('aria-label', 'Mensagem da aprovação');
       const reason = element('textarea'); reason.value = approval.reason || ''; reason.maxLength = 500; reason.rows = 2; reason.dataset.approvalReason = approval.id; reason.setAttribute('aria-label', 'Motivo da aprovação');
@@ -257,10 +265,37 @@ function renderApprovals() {
       const save = element('button', 'Salvar edição', 'button button-quiet'); save.type = 'button'; save.dataset.approvalAction = 'edit'; save.dataset.approvalId = approval.id; save.dataset.approvalRevision = approval.revision || '';
       const reject = element('button', 'Rejeitar', 'button button-quiet'); reject.type = 'button'; reject.dataset.approvalAction = 'reject'; reject.dataset.approvalId = approval.id; reject.dataset.approvalRevision = approval.revision || '';
       const approve = element('button', 'Aprovar', 'button'); approve.type = 'button'; approve.dataset.approvalAction = 'approve'; approve.dataset.approvalId = approval.id; approve.dataset.approvalRevision = approval.revision || '';
-      controls.append(save, reject, approve); edit.append(message, reason, controls); item.append(edit);
+      controls.append(save, reject, approve);
+      if (!isPush) edit.append(message);
+      edit.append(reason, controls);
+      item.append(edit);
     }
     return item;
   }, 'Nenhuma aprovação registrada.');
+}
+
+function updateApprovalFields() {
+  const push = byId('approval-kind').value === 'git.push';
+  const message = byId('approval-message');
+  message.closest('label').hidden = push;
+  message.disabled = push;
+  byId('approval-remote-label').hidden = !push;
+  byId('approval-remote').disabled = true;
+  if (push) void refreshApprovalRemotes(byId('approval-project').value);
+}
+
+async function refreshApprovalRemotes(project) {
+  const remote = byId('approval-remote');
+  if (!remote) return;
+  remote.disabled = true; remote.replaceChildren(new Option('Carregando remotos…', ''));
+  if (!project) { remote.replaceChildren(new Option('Selecione um projeto primeiro', '')); return; }
+  try {
+    const query = new URLSearchParams({ view: 'remotes', project });
+    const { remotes = [] } = await request('?' + query);
+    if (byId('approval-project').value !== project || byId('approval-kind').value !== 'git.push') return;
+    remote.replaceChildren(...(remotes.length ? remotes.map(value => new Option(value, value)) : [new Option('Nenhum remoto configurado', '')]));
+    remote.disabled = !remotes.length;
+  } catch (error) { remote.replaceChildren(new Option(error.message, '')); }
 }
 
 function renderMetrics() {
@@ -290,7 +325,10 @@ function renderMetrics() {
 }
 
 async function request(query = '', init) {
-  const response = await fetch(endpoint + query, { signal: AbortSignal.timeout(8000), ...init });
+  let action;
+  try { action = init?.body && JSON.parse(init.body).action; } catch {}
+  const timeout = ['approval.requestPush', 'approval.approve'].includes(action) ? 70000 : 8000;
+  const response = await fetch(endpoint + query, { signal: AbortSignal.timeout(timeout), ...init });
   const result = await response.json();
   if (!response.ok) throw new Error(result.error);
   return result;
@@ -424,7 +462,7 @@ async function mutate(action, data) {
 document.addEventListener('submit', async event => {
   const form = event.target;
   const data = new FormData(form);
-  const action = form.id === 'approval-form' ? 'approval.request'
+  let action = form.id === 'approval-form' ? 'approval.request'
     : data.has('path') ? 'project.create'
     : data.has('objectiveId') ? 'task.create'
       : data.has('projectId') && data.has('title') ? 'objective.create' : null;
@@ -434,9 +472,20 @@ document.addEventListener('submit', async event => {
   form.dataset.saving = 'true';
   const fields = Object.fromEntries(data);
   if (action === 'approval.request') fields.projectId = byId('approval-project').value;
+  if (action === 'approval.request' && fields.kind === 'git.push') {
+    if (!fields.remote) {
+      setText('approval-feedback', 'Selecione um remoto disponível.');
+      delete form.dataset.saving;
+      return;
+    }
+    action = 'approval.requestPush';
+    delete fields.kind;
+    delete fields.message;
+  }
   if (action === 'task.create') fields.dependencies = data.getAll('dependencies').flatMap(value => value.split(',')).map(value => value.trim()).filter(Boolean);
   if (await mutate(action, fields)) {
     form.reset();
+    if (form.id === 'approval-form') updateApprovalFields();
     activeDependencies();
   }
   delete form.dataset.saving;
@@ -452,6 +501,8 @@ document.addEventListener('change', async event => {
     setText('git-index-feedback', '');
     refreshGitFiles(input.closest('section'), input.value);
   }
+  if (input.id === 'approval-project' && byId('approval-kind').value === 'git.push') refreshApprovalRemotes(input.value);
+  if (input.id === 'approval-kind') updateApprovalFields();
   if (input.name === 'objectiveId') activeDependencies();
   if (!input.dataset.task) return;
   input.disabled = true;
@@ -503,7 +554,8 @@ document.addEventListener('click', async event => {
     let data = { id, revision };
     if (action === 'approval.edit') {
       const card = approvalButton.closest('.approval-card');
-      data.message = card.querySelector(`[data-approval-message="${id}"]`).value;
+      const message = card.querySelector(`[data-approval-message="${id}"]`);
+      if (message) data.message = message.value;
       data.reason = card.querySelector(`[data-approval-reason="${id}"]`).value;
     }
     approvalButton.disabled = true;

@@ -18,6 +18,8 @@ As decisões e o resultado persistem no computador. O histórico de auditoria gu
 
 A central cria o commit diretamente a partir da árvore aprovada, sem executar hooks Git. O fluxo exige uma branch local com commit inicial e recusa operações em andamento e repositórios com assinatura configurada.
 
+Para publicar uma branch, selecione um remoto já configurado e solicite **Push** na seção Git. Confira o destino, a branch e os hashes local e remoto na aprovação. O executor aceita a criação da branch ou seu avanço fast-forward até o commit revisado. Se o destino, a branch ou um dos hashes mudar, solicite nova revisão. A operação publica a branch local com o mesmo nome no remoto e preserva o índice e a cópia de trabalho. Use um único destino HTTPS, SSH ou local. Configure a autenticação previamente no Git. O executor usa o destino revisado, sem redirecionamentos HTTP nem hook de pre-push.
+
 Em Qualidade, selecione um projeto confiável com `package.json` para executar scripts declarados de lint, teste, build ou verificação de tipos. Os scripts usam as dependências e a configuração desse projeto. A seção mostra o estado, a duração e a saída limitada e permite interromper a execução. O histórico de execuções fica na memória do servidor local durante esta etapa.
 
 ## Arquitetura
@@ -31,7 +33,7 @@ O fluxo atual é projeto → objetivo → tarefas → dependências → mudança
 ## Testar e empacotar
 
 ```powershell
-node --test command/api.test.mjs command/plan.test.mjs command/checks.test.mjs command/commit.test.mjs command/index.test.mjs
+node --test command/api.test.mjs command/plan.test.mjs command/checks.test.mjs command/commit.test.mjs command/index.test.mjs command/push.test.mjs
 node scripts/build-worker.mjs
 git diff --check
 ```

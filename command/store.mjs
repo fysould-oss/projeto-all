@@ -5,10 +5,11 @@ import { dirname, isAbsolute, resolve } from 'node:path';
 import { draftPlan } from './plan.mjs';
 import { prepareCommit, executeCommit } from './commit.mjs';
 import { changeIndex } from './index.mjs';
+import { preparePush, executePush } from './push.mjs';
 
 const STATES = new Set(['pending', 'running', 'blocked', 'review', 'done', 'failed', 'cancelled']);
 const ACTIONS = new Set(['project.create', 'objective.create', 'objective.plan', 'task.create', 'task.state']);
-const APPROVAL_ACTIONS = new Set(['approval.request', 'approval.edit', 'approval.approve', 'approval.reject']);
+const APPROVAL_ACTIONS = new Set(['approval.request', 'approval.requestPush', 'approval.edit', 'approval.approve', 'approval.reject']);
 const INDEX_ACTIONS = new Set(['git.stage', 'git.unstage']);
 const APPROVAL_TTL_MS = 15 * 60 * 1000;
 
@@ -79,7 +80,7 @@ export async function createStore(path) {
   const interrupted = state.approvals.filter(approval => approval.state === 'executing');
   for (const approval of interrupted) {
     approval.state = 'failed';
-    approval.error = 'Execução interrompida. Confira o histórico Git antes de solicitar outro commit.';
+    approval.error = 'Execução interrompida. Confira o histórico Git e a branch de destino antes de repetir.';
     audit(state, 'approval.interrupted', {}, approval.id);
   }
   if (interrupted.length) await persist(state);
@@ -93,7 +94,8 @@ export async function createStore(path) {
 
   async function mutateApproval(action, data, next) {
     let approval;
-    if (action !== 'approval.request') {
+    const request = action === 'approval.request' || action === 'approval.requestPush';
+    if (!request) {
       approval = next.approvals.find(item => item.id === data.id);
       if (!approval) throw new Error('Aprovação não encontrada.');
       if (approval.state !== 'pending' || expired(approval)) throw new Error('A aprovação já foi decidida ou expirou.');
@@ -102,18 +104,25 @@ export async function createStore(path) {
     const project = next.projects.find(item => item.id === (approval?.projectId ?? data.projectId));
     if (!project) throw new Error('Projeto não encontrado.');
 
-    if (action === 'approval.request' || action === 'approval.edit') {
+    if (request || action === 'approval.edit') {
       const reason = typeof data.reason === 'string' ? data.reason.trim() : '';
       if (!reason || reason.length > 500) throw new Error('Informe um motivo de até 500 caracteres.');
-      const prepared = await prepareCommit(project, data.message);
+      const push = action === 'approval.requestPush' || approval?.kind === 'git.push';
+      const prepared = push
+        ? (approval?.prepared ?? await preparePush(project, data.remote))
+        : await prepareCommit(project, data.message);
       if (!approval) {
-        approval = { id: randomUUID(), projectId: project.id, kind: 'git.commit', createdAt: now() };
+        approval = { id: randomUUID(), projectId: project.id, kind: push ? 'git.push' : 'git.commit', createdAt: now() };
         next.approvals.push(approval);
       }
       Object.assign(approval, {
         message: prepared.message, reason, paths: prepared.paths, branch: prepared.branch, base: prepared.head,
         prepared, state: 'pending', revision: randomUUID(),
         expiresAt: new Date(Date.now() + APPROVAL_TTL_MS).toISOString(),
+      });
+      if (push) Object.assign(approval, {
+        message: 'Push de branch', remote: prepared.remote, destination: prepared.destination,
+        head: prepared.head, base: prepared.remoteHead ?? null,
       });
       return save(next, action, data, approval);
     }
@@ -127,7 +136,9 @@ export async function createStore(path) {
     const final = clone(state);
     const outcome = final.approvals.find(item => item.id === approval.id);
     try {
-      outcome.commit = await executeCommit(project, approval.prepared);
+      outcome.commit = approval.kind === 'git.push'
+        ? await executePush(project, approval.prepared)
+        : await executeCommit(project, approval.prepared);
       outcome.state = 'completed';
     } catch (error) {
       outcome.state = 'failed';
@@ -211,7 +222,7 @@ export async function createStore(path) {
       return snapshot;
     },
     approvalDiffContext(approvalId) {
-      const approval = state.approvals.find(item => item.id === approvalId);
+      const approval = state.approvals.find(item => item.id === approvalId && item.kind === 'git.commit');
       const project = state.projects.find(item => item.id === approval?.projectId);
       return project && clone({ project, prepared: approval.prepared });
     },

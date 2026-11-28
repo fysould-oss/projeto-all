@@ -243,3 +243,51 @@ test('requires a current approval and commits exactly the reviewed Git index', a
   assert.equal((await post('approval.approve', { id: expired.id, revision: expired.revision })).status, 400);
   assert.equal(git('rev-parse', 'HEAD'), decision.commit);
 });
+
+test('discloses and updates only the approved branch on a configured remote', async t => {
+  const folder = await mkdtemp(join(tmpdir(), 'projeto-all-approved-push-'));
+  const repository = join(folder, 'repo');
+  const remote = join(folder, 'remote.git');
+  await mkdir(repository);
+  const git = (cwd, ...args) => execFileSync('git', args, { cwd, windowsHide: true }).toString().trim();
+  git(repository, 'init', '-qb', 'main');
+  git(repository, '-c', 'user.name=Fixture', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-qm', 'Publishable');
+  git(folder, 'init', '-q', '--bare', remote);
+  git(repository, 'remote', 'add', 'origin', remote);
+  const head = git(repository, 'rev-parse', 'HEAD');
+  const handler = createCommandApi(join(folder, 'command.json'), () => ({ status: 'ready', projects: [] }));
+  const server = createServer((request, response) => handler(request, response, {}));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => {
+    await handler.close();
+    await new Promise(resolve => server.close(resolve));
+    await rm(folder, { recursive: true, force: true });
+  });
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  async function post(action, data) {
+    const response = await fetch(origin, {
+      method: 'POST', headers: { origin, 'content-type': 'application/json' },
+      body: JSON.stringify({ action, data }),
+    });
+    const body = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(body));
+    return body;
+  }
+  const { projects: [project] } = await post('project.create', { name: 'Push fixture', path: repository });
+  const remotes = await (await fetch(origin + '/?view=remotes&project=' + project.id)).json();
+  assert.deepEqual(remotes.remotes, ['origin']);
+  const { approvals: [pending] } = await post('approval.requestPush', { projectId: project.id, remote: 'origin', reason: 'Verify approved push' });
+  assert.equal(pending.kind, 'git.push');
+  assert.equal(pending.branch, 'main');
+  assert.equal(pending.head, head);
+  assert.equal(git(remote, 'for-each-ref'), '');
+  assert.equal((await fetch(origin + '/?view=approval-diff&approval=' + pending.id)).status, 404);
+  const { approvals: [edited] } = await post('approval.edit', { id: pending.id, revision: pending.revision, reason: 'Reviewed destination' });
+  assert.notEqual(edited.revision, pending.revision);
+  assert.equal(edited.destination, pending.destination);
+  const { approvals: [completed], audit } = await post('approval.approve', { id: edited.id, revision: edited.revision });
+  assert.equal(completed.state, 'completed', JSON.stringify(completed));
+  assert.equal(git(remote, 'rev-parse', 'refs/heads/main'), head);
+  assert.equal(completed.commit, head);
+  assert.doesNotMatch(JSON.stringify(audit), /Reviewed destination/);
+});
