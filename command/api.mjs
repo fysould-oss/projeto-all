@@ -2,6 +2,7 @@ import { createStore } from './store.mjs';
 import { inspectProject, resources } from './inspect.mjs';
 import { draftPlan } from './plan.mjs';
 import { createChecks } from './checks.mjs';
+import { listFiles } from './index.mjs';
 
 const json = { 'Content-Type': 'application/json; charset=utf-8' };
 
@@ -72,8 +73,8 @@ export function createCommandApi(file, getActivity) {
           send(response, headers, 200, { run });
           return;
         }
-        await database.mutate(action, data);
-        send(response, headers, 200, database.snapshot());
+        const result = await database.mutate(action, data);
+        send(response, headers, 200, ['git.stage', 'git.unstage'].includes(action) ? result : database.snapshot());
       } catch (error) {
         const message = error.code ? 'Não foi possível gravar a ação.' : error.message;
         send(response, headers, 400, { error: message });
@@ -82,6 +83,19 @@ export function createCommandApi(file, getActivity) {
     }
     const snapshot = database.snapshot();
     const kind = url.searchParams.get('view');
+    if (kind === 'files') {
+      const project = snapshot.projects.find(entry => entry.id === url.searchParams.get('project'));
+      if (!project) {
+        send(response, headers, 404, { error: 'Projeto não encontrado.' });
+        return;
+      }
+      try {
+        send(response, headers, 200, { files: await listFiles(project) });
+      } catch (error) {
+        send(response, headers, 422, { error: error.code ? 'Não foi possível ler o índice Git.' : error.message });
+      }
+      return;
+    }
     if (kind === 'approval-diff') {
       const context = database.approvalDiffContext(url.searchParams.get('approval'));
       if (!context) {

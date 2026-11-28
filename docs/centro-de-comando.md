@@ -10,7 +10,9 @@ Para gerar um rascunho, escreva as ações no objetivo e separe etapas explícit
 
 A seção Git mostra status e diff das alterações rastreadas contra HEAD. A seção Qualidade executa `git diff --check HEAD`. O painel resume sessões observadas, núcleos lógicos e uso de RAM. O histórico lista as últimas 50 operações de cadastro e transição de estado.
 
-Para criar um commit, prepare os arquivos com Git no projeto e solicite um commit na seção Git. Informe mensagem e motivo. A solicitação registra a branch, o commit base, a árvore preparada e os arquivos afetados. Abra o diff da solicitação para revisar o conteúdo. Você pode aprovar, rejeitar ou editar a solicitação. Uma edição atualiza o escopo preparado para nova revisão. Cada versão expira após 15 minutos. Se o estado Git divergir, a execução falha e a central exige outra revisão. O commit preserva as alterações fora do índice. Para desfazê-lo mantendo o histórico, revise um `git revert <commit>` no repositório.
+Em Git, selecione um projeto e consulte os arquivos alterados. Use **Preparar** ou **Retirar do índice** na linha do arquivo. Essas operações atuam no índice e preservam a cópia de trabalho. **Ver diff preparado** mostra o conteúdo atual do índice antes de solicitar o commit.
+
+Para criar um commit, prepare os arquivos e solicite um commit na seção Git. Informe mensagem e motivo. A solicitação registra a branch, o commit base, a árvore preparada e os arquivos afetados. Abra o diff da solicitação para revisar o conteúdo. Você pode aprovar, rejeitar ou editar a solicitação. Uma edição atualiza o escopo preparado para nova revisão. Cada versão expira após 15 minutos. Se o estado Git divergir, a execução falha e a central exige outra revisão. O commit preserva as alterações fora do índice. Para desfazê-lo mantendo o histórico, revise um `git revert <commit>` no repositório.
 
 As decisões e o resultado persistem no computador. O histórico de auditoria guarda tipos de evento e identificadores. Mensagens, motivos e caminhos ficam no registro local da solicitação. Se o servidor parar durante a execução, confira o histórico Git antes de criar outra solicitação.
 
@@ -29,7 +31,7 @@ O fluxo atual é projeto → objetivo → tarefas → dependências → mudança
 ## Testar e empacotar
 
 ```powershell
-node --test command/api.test.mjs command/plan.test.mjs command/checks.test.mjs command/commit.test.mjs
+node --test command/api.test.mjs command/plan.test.mjs command/checks.test.mjs command/commit.test.mjs command/index.test.mjs
 node scripts/build-worker.mjs
 git diff --check
 ```

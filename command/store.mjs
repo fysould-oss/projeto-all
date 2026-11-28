@@ -4,10 +4,12 @@ import { constants } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
 import { draftPlan } from './plan.mjs';
 import { prepareCommit, executeCommit } from './commit.mjs';
+import { changeIndex } from './index.mjs';
 
 const STATES = new Set(['pending', 'running', 'blocked', 'review', 'done', 'failed', 'cancelled']);
 const ACTIONS = new Set(['project.create', 'objective.create', 'objective.plan', 'task.create', 'task.state']);
 const APPROVAL_ACTIONS = new Set(['approval.request', 'approval.edit', 'approval.approve', 'approval.reject']);
+const INDEX_ACTIONS = new Set(['git.stage', 'git.unstage']);
 const APPROVAL_TTL_MS = 15 * 60 * 1000;
 
 const now = () => new Date().toISOString();
@@ -137,10 +139,17 @@ export async function createStore(path) {
   let queue = Promise.resolve();
 
   async function mutate(action, data = {}) {
-    if (!ACTIONS.has(action) && !APPROVAL_ACTIONS.has(action)) throw new TypeError('Ação desconhecida.');
+    if (!ACTIONS.has(action) && !APPROVAL_ACTIONS.has(action) && !INDEX_ACTIONS.has(action)) throw new TypeError('Ação desconhecida.');
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new TypeError('Dados da ação inválidos.');
     const next = clone(state);
     if (APPROVAL_ACTIONS.has(action)) return mutateApproval(action, data, next);
+    if (INDEX_ACTIONS.has(action)) {
+      const project = next.projects.find(item => item.id === data.projectId);
+      if (!project) throw new Error('Projeto não encontrado.');
+      const files = await changeIndex(project, action, data.path);
+      await save(next, action, data, project);
+      return { files };
+    }
     const timestamp = now();
     let result;
     if (action === 'project.create') {

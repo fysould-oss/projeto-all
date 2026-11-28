@@ -177,7 +177,16 @@ test('requires a current approval and commits exactly the reviewed Git index', a
   }
   const { projects: [project] } = await successful('project.create', { name: 'Review fixture', path: repository });
   await writeFile(join(repository, 'sample.txt'), 'staged\n');
-  git('add', 'sample.txt');
+  const filesURL = origin + '/?view=files&project=' + project.id;
+  const { files } = await (await fetch(filesURL)).json();
+  assert.ok(files.some(file => file.path === 'sample.txt'));
+  assert.equal((await post('git.stage', { projectId: project.id, path: '../command.json' })).status, 400);
+  await successful('git.stage', { projectId: project.id, path: 'sample.txt' });
+  assert.match(git('diff', '--cached'), /^\+staged$/m);
+  await successful('git.unstage', { projectId: project.id, path: 'sample.txt' });
+  assert.equal(git('diff', '--cached'), '');
+  assert.match(git('diff'), /^\+staged$/m);
+  await successful('git.stage', { projectId: project.id, path: 'sample.txt' });
   await writeFile(join(repository, 'sample.txt'), 'user edit\n');
   const { approvals: [pending] } = await successful('approval.request', {
     projectId: project.id, message: 'Original proposal', reason: 'Review what is staged',

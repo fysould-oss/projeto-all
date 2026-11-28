@@ -672,6 +672,10 @@ td:first-child {
 .record-row:last-child { border-bottom: 0; }
 .record-row p { margin: 0.2rem 0 0.4rem; color: var(--muted); overflow-wrap: anywhere; }
 .inspection-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.git-file-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; padding: 0.45rem 0; border-top: 1px solid var(--line-soft); }
+.git-file-row code { flex: 1 1 10rem; min-width: 0; overflow-wrap: anywhere; }
+.git-file-status { color: var(--muted); font-size: 0.75rem; }
+.git-file-actions { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .project-checks { border-top: 1px solid var(--line-soft); }
 .project-checks .inspection-controls { align-items: end; }
 .project-checks label { display: grid; gap: 0.25rem; min-width: 0; }

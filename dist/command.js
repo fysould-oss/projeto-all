@@ -14,7 +14,7 @@ const actionLabels = {
   'task.create': 'Tarefa criada', 'task.state': 'Estado da tarefa atualizado',
   'objective.plan': 'Tarefas do plano registradas', 'approval.request': 'Aprovação solicitada',
   'approval.approve': 'Aprovação encaminhada', 'approval.reject': 'Aprovação rejeitada',
-  'approval.edit': 'Aprovação editada',
+  'approval.edit': 'Aprovação editada', 'git.stage': 'Caminho preparado', 'git.unstage': 'Caminho retirado do índice',
   'approval.completed': 'Commit registrado',
   'approval.failed': 'Falha ao tentar o commit',
   'approval.interrupted': 'Execução interrompida',
@@ -80,7 +80,7 @@ function render() {
   setText('projects-count', state.projects.length + ' cadastrados');
   setText('tasks-count', state.tasks.filter(task => !['done', 'cancelled'].includes(task.state)).length + ' abertas');
   setText('coordinator-status', 'Rascunhos de plano e acompanhamento');
-  prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff preparado'], ['staged', 'Ver conteúdo preparado']]);
+  prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff completo'], ['staged', 'Ver diff preparado']]);
   renderApprovals();
   prepareGit('quality-list', [['check', 'Verificar alterações']]);
   fill('coordinator-detail', state.objectives, objective => {
@@ -141,7 +141,7 @@ function renderTasks() {
   list.replaceChildren(...Object.entries(labels).map(([status, label]) => {
     const tasks = state.tasks.filter(task => task.state === status);
     const column = element('section', undefined, 'kanban-column');
-    column.append(element('h3', label + ' ? ' + tasks.length), ...tasks.map(taskRow));
+    column.append(element('h3', label + ' · ' + tasks.length), ...tasks.map(taskRow));
     return column;
   }));
 }
@@ -164,6 +164,69 @@ function prepareGit(id, actions) {
   result.dataset.gitOutput = '';
   result.setAttribute('aria-live', 'polite');
   target.replaceChildren(controls, result);
+  if (id === 'git-list') {
+    const feedback = element('p', '', 'empty-state');
+    feedback.id = 'git-index-feedback';
+    feedback.setAttribute('role', 'status');
+    const files = element('div', undefined, 'git-index');
+    files.dataset.gitFiles = '';
+    files.append(element('p', 'Selecione um projeto para listar os caminhos alterados.', 'empty-state'));
+    target.append(feedback, files);
+  }
+}
+
+function renderGitFiles(group, project, files) {
+  const target = group.querySelector('[data-git-files]');
+  if (group.querySelector('[data-project-select]')?.value !== project) return;
+  fillGitFiles(target, project, files);
+}
+
+function fillGitFiles(target, project, files) {
+  if (!files.length) {
+    target.replaceChildren(element('p', 'Nenhum caminho alterado no índice ou na árvore de trabalho.', 'empty-state'));
+    return;
+  }
+  target.replaceChildren(...files.map(file => {
+    const row = element('div', undefined, 'git-file-row');
+    const status = file.status === '??' ? 'Não rastreado' : [
+      file.index !== ' ' && 'Índice ' + file.index, file.worktree !== ' ' && 'Cópia de trabalho ' + file.worktree,
+    ].filter(Boolean).join(' · ');
+    const name = file.renameFrom ? file.renameFrom + ' → ' + file.path : file.path;
+    row.append(element('code', name), element('span', status, 'git-file-status'));
+    const controls = element('span', undefined, 'git-file-actions');
+    for (const [action, label, available] of [
+      ['stage', 'Preparar', file.worktree !== ' '],
+      ['unstage', 'Retirar', ![' ', '?'].includes(file.index)],
+    ]) {
+      if (!available) continue;
+      const button = element('button', label, 'button button-quiet');
+      button.type = 'button';
+      button.dataset.gitIndexAction = action;
+      button.dataset.gitProject = project;
+      button.dataset.gitPath = file.path;
+      button.setAttribute('aria-label', label + ' ' + file.path);
+      controls.append(button);
+    }
+    row.append(controls);
+    return row;
+  }));
+}
+
+async function refreshGitFiles(group, project) {
+  const target = group.querySelector('[data-git-files]');
+  if (!target) return;
+  if (!project) {
+    target.replaceChildren(element('p', 'Selecione um projeto para listar os caminhos alterados.', 'empty-state'));
+    return;
+  }
+  target.replaceChildren(element('p', 'Carregando caminhos alterados…', 'empty-state'));
+  try {
+    const query = new URLSearchParams({ view: 'files', project });
+    const { files } = await request('?' + query);
+    renderGitFiles(group, project, files);
+  } catch (error) {
+    if (group.querySelector('[data-project-select]')?.value === project) target.replaceChildren(element('p', error.message, 'empty-state'));
+  }
 }
 
 function renderApprovals() {
@@ -385,6 +448,10 @@ document.addEventListener('change', async event => {
     try { localStorage.setItem('projeto-all.task-view', input.value); } catch {}
     renderTasks();
   }
+  if (input.matches('#git-list [data-project-select]')) {
+    setText('git-index-feedback', '');
+    refreshGitFiles(input.closest('section'), input.value);
+  }
   if (input.name === 'objectiveId') activeDependencies();
   if (!input.dataset.task) return;
   input.disabled = true;
@@ -395,6 +462,27 @@ document.addEventListener('change', async event => {
 });
 
 document.addEventListener('click', async event => {
+  const indexButton = event.target.closest('[data-git-index-action]');
+  if (indexButton) {
+    const action = 'git.' + indexButton.dataset.gitIndexAction;
+    const group = indexButton.closest('section');
+    const controls = [...group.querySelectorAll('[data-git-index-action]')];
+    controls.forEach(button => { button.disabled = true; });
+    try {
+      const result = await request('', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, data: { projectId: indexButton.dataset.gitProject, path: indexButton.dataset.gitPath } }),
+      });
+      renderGitFiles(group, indexButton.dataset.gitProject, result.files);
+      setText('git-index-feedback', actionLabels[action] + '.');
+      void refresh();
+    } catch (error) {
+      setText('git-index-feedback', error.message);
+    } finally {
+      controls.forEach(button => { button.disabled = false; });
+    }
+    return;
+  }
   const approvalButton = event.target.closest('[data-approval-action], [data-approval-diff]');
   if (approvalButton) {
     if (approvalButton.dataset.approvalDiff) {
