@@ -1505,6 +1505,9 @@ document.addEventListener('click', async event => {
         : '\nConsulta pública indisponível. Abra a busca no GitHub para consultar com sua sessão.';
       output.replaceChildren(repository.name + ' · ' + result.branch + ' · ' + repository.remote + '\n',
         linkTo('Buscar PRs da branch no GitHub', repository.url), summary);
+      if (repository.createUrl) {
+        output.append('\n', linkTo('Preparar Pull Request no GitHub', repository.createUrl), ' · branch remota ' + repository.head);
+      }
       for (const pull of repository.pulls) {
         output.append('\n', linkTo('PR #' + pull.number + (pull.draft ? ' · Rascunho' : ''), pull.url));
         const checks = pull.checks;

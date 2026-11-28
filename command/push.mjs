@@ -138,6 +138,14 @@ export function githubRepository(remote) {
   return repo && repo !== '.' && repo !== '..' ? { owner, repo } : null;
 }
 
+export function githubCompareUrl(repositoryUrl, head, defaultBranch = '') {
+  if (!head || head === defaultBranch) return null;
+  const compare = defaultBranch
+    ? encodeURIComponent(defaultBranch) + '...' + encodeURIComponent(head)
+    : encodeURIComponent(head);
+  return repositoryUrl + '/compare/' + compare + '?expand=1';
+}
+
 async function fetchGitHubJson(url) {
   const response = await fetch(url, {
     redirect: 'error', signal: AbortSignal.timeout(4000),
@@ -215,7 +223,8 @@ export async function githubPullRequests(project) {
   const cwd = await repository(project);
   const branch = (await git(cwd, ['branch', '--show-current'])).trim();
   if (!branch) return { branch, repositories: [] };
-  const tracking = (await git(cwd, ['for-each-ref', '--format=%(upstream:remotename)', '--', 'refs/heads/' + branch])).trim();
+  const trackingInfo = await git(cwd, ['for-each-ref', '--format=%(upstream:remotename)%00%(upstream:remoteref)', '--', 'refs/heads/' + branch]);
+  const [tracking, remoteRef = ''] = trackingInfo.trimEnd().split('\0');
   const remotesFound = await remotes(cwd);
   const remote = remotesFound.find(value => value === tracking && !value.startsWith('-'))
     || remotesFound.find(value => value === 'origin')
@@ -224,10 +233,17 @@ export async function githubPullRequests(project) {
   const target = githubRepository(remoteUrl);
   if (!target) return { branch, repositories: [] };
   const base = 'https://github.com/' + target.owner + '/' + target.repo;
-  const search = new URLSearchParams({ q: 'is:pr is:open head:"' + branch + '"' });
+  const head = remote === tracking && remoteRef.startsWith(refPrefix) ? remoteRef.slice(refPrefix.length) : branch;
+  const remotePrefix = 'refs/remotes/' + remote + '/';
+  const refs = await git(cwd, ['for-each-ref', '--format=%(refname)%00%(symref)', '--', remotePrefix + 'HEAD', remotePrefix + head]);
+  const remoteRefs = new Map(refs.trimEnd().split(/\r?\n/).map(row => row.split('\0')));
+  const defaultRef = remoteRefs.get(remotePrefix + 'HEAD') ?? '';
+  const defaultBranch = defaultRef.startsWith(remotePrefix) ? defaultRef.slice(remotePrefix.length) : '';
+  const createUrl = head !== 'HEAD' && remoteRefs.has(remotePrefix + head) ? githubCompareUrl(base, head, defaultBranch) : null;
+  const search = new URLSearchParams({ q: 'is:pr is:open head:"' + head.replaceAll('"', '\\"') + '"' });
   const api = new URL('/repos/' + target.owner + '/' + target.repo + '/pulls', 'https://api.github.com');
-  api.search = new URLSearchParams({ state: 'open', head: target.owner + ':' + branch, per_page: '20' });
-  const entry = { remote, name: target.owner + '/' + target.repo, url: base + '/pulls?' + search, pulls: [], available: false };
+  api.search = new URLSearchParams({ state: 'open', head: target.owner + ':' + head, per_page: '20' });
+  const entry = { remote, name: target.owner + '/' + target.repo, head, createUrl, url: base + '/pulls?' + search, pulls: [], available: false };
   try {
     const pulls = await fetchGitHubJson(api);
     if (Array.isArray(pulls)) {

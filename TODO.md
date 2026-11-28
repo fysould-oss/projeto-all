@@ -41,6 +41,7 @@
 - [x] Listar e preparar mudanças por arquivo, retirar mudanças do índice e aprovar o commit da árvore preparada.
 - [x] Publicar a branch atual mediante aprovação que vincula o destino e os commits local e remoto.
 - [x] Consultar PRs abertos da branch ativa em remotos GitHub públicos, com link para a busca autenticada no navegador.
+- [x] Preparar um PR pelo GitHub com a branch remota conhecida, para revisão e envio na sessão do navegador.
 - [x] Exibir o resumo de check runs públicos do commit de cada PR e o link para os detalhes no GitHub.
 - [x] Mostrar também o status combinado e os contextos públicos de CI externo para o mesmo commit.
 - [x] Resumir revisões públicas de PR por commit, incluindo pedidos de alterações e decisões anteriores.

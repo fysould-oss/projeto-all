@@ -5,8 +5,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { preparePush, executePush, githubRepository, listBranches, listTagsAndStashes, summarizeGitHubChecks, summarizeGitHubStatuses,
+import { preparePush, executePush, githubCompareUrl, githubRepository, listBranches, listTagsAndStashes, summarizeGitHubChecks, summarizeGitHubStatuses,
   summarizeGitHubReviews, summarizeGitHubWorkflows } from './push.mjs';
+
+test('builds a GitHub PR comparison with encoded refs and handles the default branch', () => {
+  const repo = 'https://github.com/owner/repo';
+  assert.equal(githubCompareUrl(repo, 'fix/ação#1', 'release/base'), repo + '/compare/release%2Fbase...fix%2Fa%C3%A7%C3%A3o%231?expand=1');
+  assert.equal(githubCompareUrl(repo, 'fix/feature'), repo + '/compare/fix%2Ffeature?expand=1');
+  assert.equal(githubCompareUrl(repo, 'main', 'main'), null);
+  assert.equal(githubCompareUrl(repo, ''), null);
+});
 
 test('projects workflow runs for the exact PR commit and rejects invalid run data', () => {
   const sha = 'a'.repeat(40);
