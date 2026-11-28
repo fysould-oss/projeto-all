@@ -29,3 +29,14 @@ export function mergeCheckHistory(existing, projectId, run) {
   }
   return next.slice(-50);
 }
+
+export function summarizeCheckHistory(history, projects) {
+  const summaries = new Map(projects.map(({ id }) => [id, {
+    projectId: id, passed: 0, failed: 0, timed_out: 0, cancelled: 0, interrupted: 0,
+  }]));
+  for (const run of history) {
+    const summary = summaries.get(run.projectId);
+    if (summary && STATUSES.has(run.status) && run.status !== 'running') summary[run.status] += 1;
+  }
+  return [...summaries.values()];
+}

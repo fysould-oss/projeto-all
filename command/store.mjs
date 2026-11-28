@@ -7,7 +7,7 @@ import { prepareCommit, executeCommit } from './commit.mjs';
 import { changeIndex } from './index.mjs';
 import { preparePush, executePush } from './push.mjs';
 import { normalizePreviewUrl } from './previews.mjs';
-import { mergeCheckHistory } from './check-history.mjs';
+import { mergeCheckHistory, summarizeCheckHistory } from './check-history.mjs';
 import { notificationsFromAudit } from './notifications.mjs';
 import { auditMetadata, searchAudit } from './audit-search.mjs';
 
@@ -507,6 +507,7 @@ export async function createStore(path) {
       snapshot.audit = clone(audit.slice(-50).map(auditMetadata));
       snapshot.auditVersion = audit.length;
       snapshot.notifications = notificationsFromAudit(audit, readNotifications);
+      snapshot.quality = summarizeCheckHistory(checkHistory, snapshot.projects);
       snapshot.approvals = snapshot.approvals.map(({ prepared, ...approval }) => ({
         ...approval, state: expired(approval) ? 'expired' : approval.state,
       }));

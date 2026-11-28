@@ -1,6 +1,18 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { mergeCheckHistory } from './check-history.mjs';
+import { mergeCheckHistory, summarizeCheckHistory } from './check-history.mjs';
+
+test('summarizes only retained terminal outcomes from registered projects', () => {
+  const results = summarizeCheckHistory([
+    { projectId: 'a', status: 'passed' }, { projectId: 'a', status: 'running' },
+    { projectId: 'a', status: 'timed_out' }, { projectId: 'removed', status: 'failed' },
+    { projectId: 'a', status: 'cancelled' }, { projectId: 'a', status: 'interrupted' },
+  ], [{ id: 'a' }, { id: 'b' }]);
+  assert.deepEqual(results, [
+    { projectId: 'a', passed: 1, failed: 0, timed_out: 1, cancelled: 1, interrupted: 1 },
+    { projectId: 'b', passed: 0, failed: 0, timed_out: 0, cancelled: 0, interrupted: 0 },
+  ]);
+});
 
 test('keeps only bounded public check metadata and updates by id', () => {
   const existing = Array.from({ length: 51 }, (_, index) => ({ id: String(index), projectId: 'p', script: 'test', status: 'passed', output: 'secret' }));

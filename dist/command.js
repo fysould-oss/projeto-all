@@ -961,6 +961,7 @@ async function refreshApprovalRemotes(project) {
 
 function renderMetrics() {
   const { observed, resources } = state;
+  renderQualityOverview();
   if (observed) {
     setText('activity-meta', ({ connected: 'Monitor conectado', starting: 'Monitor iniciando', unavailable: 'Monitor indisponível' })[observed.status] || observed.status);
     const values = {
@@ -969,6 +970,7 @@ function renderMetrics() {
       running: state.tasks.filter(task => task.state === 'running').length,
       sessions: observed.sessions,
       checks: resources?.activeChecks ?? '—',
+      checkFailures: (state.quality || []).reduce((total, result) => total + result.failed + result.timed_out, 0),
       cpu: Number.isFinite(resources?.cpuPercent) ? resources.cpuPercent.toFixed(1) + '%' : '—',
     };
     const stats = displayWidgets.filter(widget => widget.visible).map(({ id, wide }) => [id, values[id], wide]);
@@ -993,6 +995,36 @@ function renderMetrics() {
   setText('resource-percent', used + '% RAM');
   byId('resource-meter').style.width = used + '%';
   setText('resource-summary', gib(resources.total - resources.free) + ' em uso · ' + resources.cores + ' núcleos lógicos');
+}
+
+function renderQualityOverview() {
+  const target = byId('quality-overview-list');
+  const active = new Map();
+  for (const run of state.processes || []) {
+    if (run.status === 'running') active.set(run.projectId, (active.get(run.projectId) || 0) + 1);
+  }
+  const names = new Map(state.projects.map(project => [project.id, project.name]));
+  const entries = (state.quality || []).map(({ projectId, ...counts }) =>
+    ({ projectId, name: names.get(projectId), running: active.get(projectId) || 0, ...counts }));
+  const signature = JSON.stringify(entries);
+  if (target.dataset.signature === signature) return;
+  target.dataset.signature = signature;
+  fill('quality-overview-list', entries, ({ projectId, name, ...counts }) => {
+    const parts = [[counts.running, 'em execução'], [counts.passed, 'aprovadas'], [counts.failed, 'falhas'],
+      [counts.timed_out, 'tempo limite'], [counts.cancelled, 'canceladas'], [counts.interrupted, 'interrompidas']];
+    const item = row(name, parts.filter(([count]) => count).map(([count, label]) => count + ' ' + label).join(' · ')
+      || 'Nenhuma verificação registrada.');
+    const link = element('a', 'Ver verificações');
+    link.href = '#qualidade';
+    link.setAttribute('aria-label', 'Ver verificações de ' + name);
+    link.addEventListener('click', () => {
+      checksProject.value = projectId;
+      checksResultFilter.value = '';
+      checksProject.dispatchEvent(new Event('change'));
+    });
+    item.append(link);
+    return item;
+  }, 'Nenhum projeto cadastrado.');
 }
 
 function renderObservability(resources) {
@@ -1911,6 +1943,7 @@ const displayKey = 'projeto-all.display';
 const widgetTitles = {
   projects: 'Projetos', objectives: 'Objetivos', running: 'Tarefas em execução',
   sessions: 'Sessões observadas', checks: 'Verificações ativas', cpu: 'CPU do host',
+  checkFailures: 'Falhas recentes de verificação',
 };
 const defaultWidgets = Object.keys(widgetTitles).map((id, index) => ({ id, visible: index < 4, wide: false }));
 let displayWidgets = [];

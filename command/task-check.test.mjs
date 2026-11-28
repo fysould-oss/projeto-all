@@ -72,4 +72,6 @@ test('task.check gates dependencies and persists npm completion metadata', async
   assert.equal(runs.find(run => run.id === failed.check.id).taskId, second.id);
   assert.equal(runs.find(run => run.id === retried.check.id).taskId, second.id);
   assert.ok(runs.every(run => !Object.hasOwn(run, 'output')));
+  const { quality } = await (await fetch(origin)).json();
+  assert.deepEqual(quality, [{ projectId: project.id, passed: 2, failed: 1, timed_out: 0, cancelled: 0, interrupted: 0 }]);
 });
