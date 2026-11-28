@@ -103,7 +103,14 @@ export async function createStore(path) {
     task.check.status = 'interrupted';
     audit(state, 'task.check.interrupted', {}, task.id);
   }
-  if (interrupted.length || interruptedChecks.length) await persist(state);
+  const interruptedDispatches = state.tasks.filter(task => task.executor?.status === 'dispatching');
+  for (const task of interruptedDispatches) {
+    task.executor.status = 'dispatch_unknown';
+    task.state = 'blocked';
+    task.updatedAt = now();
+    audit(state, 'task.dispatch.interrupted', {}, task.id);
+  }
+  if (interrupted.length || interruptedChecks.length || interruptedDispatches.length) await persist(state);
 
   async function save(next, action, data, result) {
     audit(next, action, data, result.id);
@@ -179,6 +186,7 @@ export async function createStore(path) {
     const task = next.tasks.find(item => item.id === data?.id);
     if (!task) throw new Error('Tarefa não encontrada.');
     if (scheduled && task.scheduledScript !== data.script) return null;
+    if (task.executor?.status === 'dispatch_unknown') throw new Error('Confira a fila Codex antes de executar esta tarefa.');
     if (!['pending', 'failed'].includes(task.state)) throw new Error('A tarefa precisa estar pendente ou com falha.');
     if (task.dependencies.some(id => next.tasks.find(item => item.id === id)?.state !== 'done')) {
       throw new Error('Conclua as dependências antes de iniciar esta tarefa.');
@@ -208,6 +216,7 @@ export async function createStore(path) {
     const next = clone(state);
     const task = next.tasks.find(item => item.id === data?.id);
     if (!task || !['pending', 'failed'].includes(task.state)) throw new Error('Selecione uma tarefa pendente ou com falha.');
+    if (task.executor?.status === 'dispatch_unknown') throw new Error('Confira a fila Codex antes de executar esta tarefa.');
     const objective = next.objectives.find(item => item.id === task.objectiveId);
     if (!objective || objective.status === 'cancelled') throw new Error('O objetivo foi cancelado.');
     if (data.script === null) {
@@ -260,6 +269,57 @@ export async function createStore(path) {
     await save(next, 'check.' + run.status, {}, run);
   }
 
+  async function dispatchTask(data, prepare) {
+    const next = clone(state);
+    const task = next.tasks.find(item => item.id === data?.id);
+    if (!task || !['pending', 'failed'].includes(task.state) || task.scheduledScript || task.executor?.status === 'dispatch_unknown') {
+      throw new Error('Selecione uma tarefa disponível e sem verificação agendada.');
+    }
+    const objective = next.objectives.find(item => item.id === task.objectiveId);
+    const project = next.projects.find(item => item.id === objective?.projectId);
+    if (!project || ['paused', 'cancelled'].includes(objective.status)) throw new Error('O objetivo precisa estar ativo.');
+    if (task.dependencies.some(id => next.tasks.find(item => item.id === id)?.state !== 'done')) {
+      throw new Error('Conclua as dependências antes de enviar esta tarefa.');
+    }
+    const enqueue = await prepare(project, task.title);
+    task.executor = { status: 'dispatching', updated: now() };
+    task.state = 'running';
+    task.updatedAt = task.executor.updated;
+    await save(next, 'task.dispatch', data, task);
+    const final = clone(state);
+    const result = final.tasks.find(item => item.id === task.id);
+    try {
+      const id = await enqueue();
+      result.executor = { id, status: 'queued', updated: now() };
+    } catch {
+      result.executor.status = 'dispatch_unknown';
+      result.state = 'blocked';
+    }
+    result.updatedAt = now();
+    return save(final, 'task.executor.' + result.executor.status, {}, result);
+  }
+
+  async function syncExecutorJobs(jobs) {
+    const byId = new Map(jobs.map(job => [job.id, job]));
+    const next = clone(state);
+    let changed = false;
+    for (const task of next.tasks) {
+      if (!['queued', 'running'].includes(task.executor?.status)) continue;
+      const job = byId.get(task.executor.id);
+      if (!job?.status || (job.status === task.executor.status && job.updated === task.executor.updated)) continue;
+      task.executor = { id: job.id, status: job.status, updated: job.updated, files: job.files };
+      if (job.status === 'done') task.state = 'review';
+      if (job.status === 'failed') task.state = 'failed';
+      task.updatedAt = now();
+      audit(next, 'task.executor.' + job.status, {}, task.id);
+      changed = true;
+    }
+    if (changed) {
+      await persist(next);
+      state = next;
+    }
+  }
+
   async function controlObjective(data) {
     const next = clone(state);
     const objective = next.objectives.find(item => item.id === data?.id);
@@ -267,6 +327,10 @@ export async function createStore(path) {
     const { control } = data;
     if (!['pause', 'resume', 'cancel'].includes(control)) throw new Error('Controle inválido.');
     if (objective.status === 'cancelled') throw new Error('O objetivo foi cancelado.');
+    if (control === 'cancel' && next.tasks.some(task => task.objectiveId === objective.id
+      && ['dispatching', 'queued', 'running', 'dispatch_unknown'].includes(task.executor?.status))) {
+      throw new Error('Resolva a execução Codex na fila local antes de cancelar o objetivo.');
+    }
     objective.status = { pause: 'paused', resume: 'active', cancel: 'cancelled' }[control];
     objective.updatedAt = now();
     const runIds = [];
@@ -347,6 +411,9 @@ export async function createStore(path) {
       const objective = next.objectives.find(item => item.id === task.objectiveId);
       if (objective?.status === 'cancelled') throw new Error('O objetivo foi cancelado.');
       if (task.check?.status === 'running') throw new Error('Interrompa a execução na seção Qualidade antes de alterar o estado.');
+      if (['dispatching', 'queued', 'running', 'dispatch_unknown'].includes(task.executor?.status)) {
+        throw new Error('Aguarde o resultado do executor Codex antes de alterar o estado.');
+      }
       if (!STATES.has(data.state)) throw new TypeError('Estado de tarefa inválido.');
       if (data.state === 'running') {
         if (objective?.status === 'paused') throw new Error('Retome o objetivo antes de iniciar tarefas.');
@@ -386,5 +453,7 @@ export async function createStore(path) {
     scheduleTask(data, checks) { return serialize(() => scheduleTask(data, checks)); },
     failScheduledTask(id, script) { return serialize(() => failScheduledTask(id, script)); },
     controlObjective(data) { return serialize(() => controlObjective(data)); },
+    dispatchTask(data, enqueue) { return serialize(() => dispatchTask(data, enqueue)); },
+    syncExecutorJobs(jobs) { return serialize(() => syncExecutorJobs(jobs)); },
   };
 }

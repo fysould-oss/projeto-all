@@ -16,6 +16,7 @@
 
 - [ ] Integrar executor pareado após revisão conjunta do #10. Definir contrato entre plano, dependências, fila e recibos.
 - [x] Ler os estados reais da fila local do executor do #10 pelo painel, sem expor dados privados de execução.
+- [x] Enviar tarefas elegíveis após confirmação à fila configurada do #10 e sincronizar o resultado para revisão.
 - [ ] Decompor objetivos com revisão humana, agendar tarefas independentes e registrar progresso, bloqueio, reatribuição e revisão final.
 - [x] Gerar e revisar um primeiro rascunho por regras a partir das ações escritas no objetivo e persistir as dependências após aprovação do plano.
 - [ ] Definir modelos, políticas por projeto, limites de concorrência e tokens, medição de custo e alertas.

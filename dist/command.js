@@ -10,6 +10,10 @@ const planRoles = {
 };
 const modelTiers = { economy: 'econômico', balanced: 'equilibrado', advanced: 'avançado' };
 const checkLabels = { running: 'Em execução', passed: 'Aprovada', failed: 'Falhou', cancelled: 'Cancelada', timed_out: 'Tempo limite', interrupted: 'Interrompida' };
+const executorLabels = {
+  dispatching: 'Enviando', queued: 'Na fila', running: 'Em execução', done: 'Concluída',
+  failed: 'Falhou', waiting_remote: 'Aguardando executor', dispatch_unknown: 'Envio não confirmado. Confira a fila local.',
+};
 const actionLabels = {
   'project.create': 'Projeto cadastrado', 'objective.create': 'Objetivo criado',
   'objective.pause': 'Objetivo pausado', 'objective.resume': 'Objetivo retomado', 'objective.cancel': 'Objetivo cancelado',
@@ -23,6 +27,10 @@ const actionLabels = {
   'preview.save': 'Preview salvo',
   'check.passed': 'Verificação aprovada', 'check.failed': 'Verificação falhou',
   'check.cancelled': 'Verificação cancelada', 'check.timed_out': 'Verificação excedeu o tempo limite',
+  'task.dispatch': 'Envio ao Codex solicitado', 'task.executor.queued': 'Tarefa na fila Codex',
+  'task.executor.running': 'Tarefa em execução no Codex', 'task.executor.done': 'Tarefa Codex pronta para revisão',
+  'task.executor.failed': 'Execução Codex falhou', 'task.executor.dispatch_unknown': 'Envio ao Codex não confirmado',
+  'task.dispatch.interrupted': 'Envio ao Codex interrompido',
   'task.check': 'Verificação da tarefa iniciada', 'task.check.passed': 'Verificação da tarefa aprovada',
   'task.check.failed': 'Verificação da tarefa falhou', 'task.check.cancelled': 'Verificação da tarefa cancelada',
   'task.check.timed_out': 'Verificação excedeu o tempo limite', 'task.check.interrupted': 'Verificação da tarefa interrompida',
@@ -83,8 +91,7 @@ function renderCoordinatorJobs() {
   fill('coordinator-jobs-list', jobs, job => {
     const item = element('article', undefined, 'executor-job-row');
     const title = element('div', undefined, 'executor-job-title');
-    const states = { queued: 'Na fila', running: 'Em execução', done: 'Concluída', failed: 'Falhou', waiting_remote: 'Aguardando executor' };
-    title.append(element('strong', job.project), element('span', states[job.status] || 'Estado indisponível', 'job-status'));
+    title.append(element('strong', job.project), element('span', executorLabels[job.status] || 'Estado indisponível', 'job-status'));
     const detail = [job.id, job.slot && 'vaga ' + String(job.slot).toUpperCase(),
       job.submitted && 'enviado ' + new Date(job.submitted).toLocaleString('pt-BR'),
       job.updated && 'atualizado ' + new Date(job.updated).toLocaleString('pt-BR'),
@@ -229,12 +236,14 @@ function renderTasks() {
     for (const [value, title] of Object.entries(labels)) select.add(new Option(title, value));
     select.value = task.state;
     const check = task.check;
-    select.disabled = check?.status === 'running' || objective?.status === 'cancelled';
+    select.disabled = check?.status === 'running' || objective?.status === 'cancelled'
+      || ['dispatching', 'queued', 'running', 'dispatch_unknown'].includes(task.executor?.status);
     if (objective?.status === 'paused' && task.state !== 'running') {
       select.querySelector('option[value="running"]').disabled = true;
     }
     item.append(select);
     if (check) item.append(checkInfo(check));
+    if (task.executor) item.append(executorInfo(task.executor));
     const canSchedule = ['pending', 'failed'].includes(task.state);
     if (!canSchedule) return item;
     const checkControls = element('div', undefined, 'task-check-controls');
@@ -247,6 +256,12 @@ function renderTasks() {
     script.addEventListener('change', () => { run.disabled = !script.value || !runnable; schedule.disabled = !task.scheduledScript && !script.value; });
     checkControls.append(script, run, schedule); item.append(checkControls);
     if (task.scheduledScript) item.append(element('p', 'Agendado: ' + task.scheduledScript, 'task-schedule-info'));
+    if (state.dispatchEnabled && runnable && !task.scheduledScript && task.executor?.status !== 'dispatch_unknown') {
+      const dispatch = element('button', 'Enviar ao Codex', 'button button-quiet');
+      dispatch.type = 'button';
+      dispatch.dataset.taskDispatch = task.id;
+      checkControls.append(dispatch);
+    }
     return item;
   }
   const list = byId('tasks-list');
@@ -454,6 +469,7 @@ async function loadGraph(objective) {
 
 function graphStatus(node) {
   if (node.ready) return 'Pronta';
+  if (node.executor?.status === 'queued') return 'Na fila do Codex';
   if (node.state === 'pending' && node.paused) return 'Objetivo pausado';
   if (node.state === 'pending' && node.layer === null) return 'Dependência não resolvida';
   if (node.state === 'pending' && node.waitingOn.length) return 'Aguardando dependência';
@@ -532,6 +548,13 @@ function checkInfo(check) {
   ].filter(Boolean).join(' · '), 'task-check-info');
 }
 
+function executorInfo(executor) {
+  return element('p', [
+    'Executor Codex: ' + (executorLabels[executor.status] || 'Estado indisponível'),
+    executor.id, executor.files != null && executor.files + ' arquivo(s) observado(s)',
+  ].filter(Boolean).join(' · '), 'task-executor-info');
+}
+
 function showGraphNode(id) {
   const node = graphNodes.get(id);
   selectedGraphNode = node?.id;
@@ -547,6 +570,8 @@ function showGraphNode(id) {
   const check = node.check || state.tasks.find(task => task.id === node.id)?.check;
   if (check) detail.append(checkInfo(check));
   if (node.scheduledScript) detail.append(element('p', 'Agendado: ' + node.scheduledScript, 'task-schedule-info'));
+  const executor = node.executor || state.tasks.find(task => task.id === node.id)?.executor;
+  if (executor) detail.append(executorInfo(executor));
   if (node.dependencies.length) {
     const list = element('ul');
     for (const dependency of node.dependencies) {
@@ -853,6 +878,15 @@ document.addEventListener('click', event => {
 });
 
 document.addEventListener('click', async event => {
+  const dispatch = event.target.closest('[data-task-dispatch]');
+  if (dispatch) {
+    const task = state.tasks.find(item => item.id === dispatch.dataset.taskDispatch);
+    if (!task || !window.confirm('Enviar ao Codex a tarefa: ' + task.title + '?')) return;
+    dispatch.disabled = true;
+    await mutate('task.dispatch', { id: task.id });
+    dispatch.disabled = false;
+    return;
+  }
   const control = event.target.closest('[data-objective-control]');
   if (control) {
     const action = control.dataset.objectiveControl;

@@ -6,8 +6,9 @@ import { listFiles } from './index.mjs';
 import { listRemotes } from './push.mjs';
 import { objectiveGraph } from './graph.mjs';
 import { readCoordinatorJobs } from './coordinator-status.mjs';
+import { prepareCoordinatorDispatch } from './coordinator-dispatch.mjs';
 import { homedir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 
 const json = { 'Content-Type': 'application/json; charset=utf-8' };
 
@@ -28,6 +29,7 @@ async function readAction(request) {
 
 export function createCommandApi(file, getActivity, {
   coordinatorDirectory = process.env.PROJETO_ALL_COORDINATOR_HOME || join(homedir(), '.projeto-all', 'coordinator'),
+  executorModule = process.env.PROJETO_ALL_EXECUTOR_MODULE,
 } = {}) {
   const checks = createChecks();
   const taskChecks = new Set();
@@ -35,10 +37,25 @@ export function createCommandApi(file, getActivity, {
   let draining;
   let pendingDrain = false;
   let closed = false;
+  let executorTimer;
+  let synchronizing;
+  const dispatchEnabled = typeof executorModule === 'string' && isAbsolute(executorModule);
   const open = () => store ??= createStore(file).catch(error => {
     store = undefined;
     throw error;
   });
+
+  function synchronizeExecutor(database) {
+    if (synchronizing) return synchronizing;
+    const ids = database.snapshot().tasks.filter(task => ['queued', 'running'].includes(task.executor?.status))
+      .map(task => task.executor.id);
+    if (!ids.length) return Promise.resolve();
+    synchronizing = readCoordinatorJobs(coordinatorDirectory, ids)
+      .then(({ jobs }) => database.syncExecutorJobs(jobs))
+      .catch(() => console.error('Não foi possível sincronizar os estados Codex.'))
+      .finally(() => { synchronizing = undefined; });
+    return synchronizing;
+  }
 
   function followRun(project, run, complete) {
     const completion = checks.wait(project, run.id)
@@ -116,7 +133,18 @@ export function createCommandApi(file, getActivity, {
       }
       try {
         const { action, data } = await readAction(request);
+        if (action === 'task.dispatch') {
+          if (!dispatchEnabled) {
+            send(response, headers, 503, { error: 'Configure o módulo do executor Codex no servidor.' });
+            return;
+          }
+          await database.dispatchTask(data, (project, instruction) =>
+            prepareCoordinatorDispatch({ directory: coordinatorDirectory, executorModule, project, instruction }));
+          send(response, headers, 200, database.snapshot());
+          return;
+        }
         if (action === 'objective.control') {
+          if (data?.control === 'cancel') await synchronizeExecutor(database);
           const { project, runIds } = await database.controlObjective(data);
           await Promise.all(runIds.map(id => checks.cancel(project, id)));
           send(response, headers, 200, database.snapshot());
@@ -161,11 +189,12 @@ export function createCommandApi(file, getActivity, {
       }
       return;
     }
-    const snapshot = database.snapshot();
     const kind = url.searchParams.get('view');
+    if (!kind || ['graph', 'coordinator-jobs'].includes(kind)) await synchronizeExecutor(database);
+    const snapshot = database.snapshot();
     if (kind === 'coordinator-jobs') {
       const result = await readCoordinatorJobs(coordinatorDirectory);
-      send(response, headers, 200, result);
+      send(response, headers, 200, { ...result, dispatchEnabled });
       return;
     }
     if (kind === 'graph') {
@@ -244,7 +273,7 @@ export function createCommandApi(file, getActivity, {
     }
     const activity = getActivity();
     send(response, headers, 200, {
-      ...snapshot,
+      ...snapshot, dispatchEnabled,
       observed: {
         status: activity.status,
         projects: activity.projects.length,
@@ -253,9 +282,19 @@ export function createCommandApi(file, getActivity, {
       resources: resources(),
     });
   };
-  handle.start = () => scheduleDrain();
+  handle.start = () => {
+    scheduleDrain();
+    if (dispatchEnabled && !executorTimer) {
+      executorTimer = setInterval(() => {
+        void open().then(synchronizeExecutor).catch(() => {});
+      }, 5000);
+      executorTimer.unref();
+    }
+  };
   handle.close = async () => {
     closed = true;
+    clearInterval(executorTimer);
+    await synchronizing;
     await draining;
     await checks.close();
     await Promise.all(taskChecks);

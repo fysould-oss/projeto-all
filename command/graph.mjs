@@ -70,6 +70,7 @@ export function objectiveGraph(snapshot, objectiveId) {
     return {
       id: task.id, title: task.title, state: task.state, role: task.role, check: task.check,
       scheduledScript: task.scheduledScript,
+      executor: task.executor,
       dependencies: task.dependencies, external: task.objectiveId !== objectiveId,
       waitingOn, layer, paused, ready: !paused && task.state === 'pending' && layer !== null && !waitingOn.length,
     };
