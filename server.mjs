@@ -77,6 +77,9 @@ const server = createServer(async (request, response) => {
   console.log('Painel disponível em http://127.0.0.1:' + port);
 });
 server.on('close', () => {
+  void commandApi.close();
   closeRelay();
   activity.close();
 });
+process.once('SIGINT', () => server.close());
+process.once('SIGTERM', () => server.close());

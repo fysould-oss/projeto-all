@@ -6,7 +6,11 @@ Requer Node.js 20 ou posterior e Git no PATH. Execute `node server.mjs` e abra h
 
 Cadastre o caminho absoluto de uma pasta, registre um objetivo e crie as tarefas na ordem das dependências. Marque as predecessoras como concluídas antes de iniciar uma tarefa dependente. O operador altera os estados, que persistem entre reinícios.
 
+Para gerar um rascunho, escreva as ações no objetivo e separe etapas explícitas com ponto e vírgula ou linhas. A central sugere dependências entre análise, implementação, qualidade e entrega. A revisão mostra os papéis e perfis de modelo sugeridos pelas regras locais. Registre as tarefas após conferir o rascunho. A geração e a aprovação do plano não iniciam agentes nem comandos.
+
 A seção Git mostra status e diff das alterações rastreadas contra HEAD. A seção Qualidade executa `git diff --check HEAD`. O painel resume sessões observadas, núcleos lógicos e uso de RAM. O histórico lista as últimas 50 operações de cadastro e transição de estado.
+
+Em Qualidade, selecione um projeto confiável com `package.json` para executar scripts declarados de lint, teste, build ou verificação de tipos. Os scripts usam as dependências e a configuração desse projeto. A seção mostra o estado, a duração e a saída limitada e permite interromper a execução. O histórico de execuções fica na memória do servidor local durante esta etapa.
 
 ## Arquitetura
 
@@ -19,7 +23,7 @@ O fluxo atual é projeto → objetivo → tarefas → dependências → mudança
 ## Testar e empacotar
 
 ```powershell
-node --test command/api.test.mjs
+node --test command/api.test.mjs command/plan.test.mjs command/checks.test.mjs
 node scripts/build-worker.mjs
 git diff --check
 ```

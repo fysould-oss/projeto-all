@@ -16,12 +16,14 @@
 
 - [ ] Integrar executor pareado após revisão conjunta do #10. Definir contrato entre plano, dependências, fila e recibos.
 - [ ] Decompor objetivos com revisão humana, agendar tarefas independentes e registrar progresso, bloqueio, reatribuição e revisão final.
+- [x] Gerar e revisar um primeiro rascunho por regras a partir das ações escritas no objetivo e persistir as dependências após aprovação do plano.
 - [ ] Definir modelos, políticas por projeto, limites de concorrência e tokens, medição de custo e alertas.
 - [ ] Implementar aprovações com escopo, expiração, decisão e confirmação vinculada ao executor.
 
 ## 4. Ferramentas de desenvolvimento
 
 - [ ] Integrar sessões de terminal, histórico, cancelamento de árvore de processos, testes, builds e logs.
+- [x] Executar scripts declarados de lint, testes, build e tipos em projetos Node, com saída limitada, estado, duração e interrupção pela central.
 - [ ] Integrar stage, commit, push, PR, checks e deploy com confirmação e recuperação.
 - [ ] Validar previews, captura visual e observabilidade por projeto.
 - [ ] Integrar o controle móvel ao transporte privado autenticado.

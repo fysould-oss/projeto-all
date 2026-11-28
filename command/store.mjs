@@ -2,9 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { access, mkdir, readFile, rename, stat, writeFile } from 'node:fs/promises';
 import { constants } from 'node:fs';
 import { dirname, isAbsolute, resolve } from 'node:path';
+import { draftPlan } from './plan.mjs';
 
 const STATES = new Set(['pending', 'running', 'blocked', 'review', 'done', 'failed', 'cancelled']);
-const ACTIONS = new Set(['project.create', 'objective.create', 'task.create', 'task.state']);
+const ACTIONS = new Set(['project.create', 'objective.create', 'objective.plan', 'task.create', 'task.state']);
 
 const now = () => new Date().toISOString();
 const clone = value => structuredClone(value);
@@ -82,6 +83,21 @@ export async function createStore(path) {
       if (!projectId || !next.projects.some(item => item.id === projectId)) throw new Error('Projeto não encontrado.');
       result = { id: randomUUID(), projectId, title: text(data.title, 'title'), createdAt: timestamp };
       next.objectives.push(result);
+    } else if (action === 'objective.plan') {
+      const objective = next.objectives.find(item => item.id === data.id);
+      if (!objective) throw new Error('Objetivo não encontrado.');
+      if (next.tasks.some(task => task.objectiveId === objective.id)) {
+        throw new Error('Este objetivo já tem tarefas.');
+      }
+      const plan = draftPlan(objective.title);
+      if (!plan.length) throw new Error('Descreva as etapas pretendidas no objetivo.');
+      const ids = plan.map(() => randomUUID());
+      next.tasks.push(...plan.map((step, index) => ({
+        id: ids[index], objectiveId: objective.id, title: step.title, role: step.role,
+        modelTier: step.modelTier, dependencies: step.dependencies.map(dependency => ids[dependency]),
+        state: 'pending', createdAt: timestamp, updatedAt: timestamp,
+      })));
+      result = objective;
     } else if (action === 'task.create') {
       const objectiveId = id(data.objectiveId);
       if (!objectiveId || !next.objectives.some(item => item.id === objectiveId)) throw new Error('Objetivo não encontrado.');

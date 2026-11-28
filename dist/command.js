@@ -4,9 +4,15 @@ const labels = {
   pending: 'Pendente', running: 'Em andamento', blocked: 'Bloqueada', review: 'Em revisão',
   done: 'Concluída', failed: 'Falhou', cancelled: 'Cancelada',
 };
+const planRoles = {
+  scan: 'Análise', implementation: 'Implementação', qa: 'Qualidade',
+  delivery: 'Entrega', coordination: 'Coordenação',
+};
+const modelTiers = { economy: 'econômico', balanced: 'equilibrado', advanced: 'avançado' };
 const actionLabels = {
   'project.create': 'Projeto cadastrado', 'objective.create': 'Objetivo criado',
   'task.create': 'Tarefa criada', 'task.state': 'Estado da tarefa atualizado',
+  'objective.plan': 'Tarefas do plano registradas',
 };
 let state = { projects: [], objectives: [], tasks: [], audit: [] };
 let revision;
@@ -67,12 +73,19 @@ function render() {
   }
   setText('projects-count', state.projects.length + ' cadastrados');
   setText('tasks-count', state.tasks.filter(task => !['done', 'cancelled'].includes(task.state)).length + ' abertas');
-  setText('coordinator-status', 'Planejamento manual');
+  setText('coordinator-status', 'Rascunhos de plano e acompanhamento');
   prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff']]);
   prepareGit('quality-list', [['check', 'Verificar alterações']]);
   fill('coordinator-detail', state.objectives, objective => {
     const tasks = state.tasks.filter(task => task.objectiveId === objective.id);
-    return row(objective.title, [getProject(objective.projectId), tasks.filter(task => task.state === 'done').length + '/' + tasks.length + ' concluídas'].join(' · '));
+    const card = row(objective.title, [getProject(objective.projectId), tasks.filter(task => task.state === 'done').length + '/' + tasks.length + ' concluídas'].join(' · '));
+    if (!tasks.length) {
+      const button = element('button', 'Gerar rascunho', 'button button-quiet');
+      button.type = 'button';
+      button.dataset.plan = objective.id;
+      card.append(button);
+    }
+    return card;
   }, 'Crie um objetivo depois de cadastrar um projeto.');
   renderTasks();
   fill('history-list', state.audit.slice(-50).reverse(), entry =>
@@ -90,7 +103,7 @@ function render() {
 function renderTasks() {
   const getObjective = id => state.objectives.find(entry => entry.id === id)?.title;
   function taskRow(task) {
-    const item = row(task.title, getObjective(task.objectiveId));
+    const item = row(task.title, [getObjective(task.objectiveId), planRoles[task.role], modelTiers[task.modelTier] && 'Perfil ' + modelTiers[task.modelTier]].filter(Boolean).join(' · '));
     item.id = 'task-' + task.id;
     if (task.dependencies.length) {
       const description = element('p', 'Depende de ');
@@ -177,6 +190,85 @@ async function request(query = '', init) {
   const result = await response.json();
   if (!response.ok) throw new Error(result.error);
   return result;
+}
+
+const checksProject = byId('checks-project');
+const checksScript = byId('checks-script');
+const checksStart = byId('checks-start');
+let checksSignature;
+let checksRequest = 0;
+let checksPending = false;
+
+function updateCheckControls() {
+  checksStart.disabled = checksPending || checksScript.disabled || !checksScript.value;
+}
+
+async function refreshChecks() {
+  const project = checksProject.value;
+  const sequence = ++checksRequest;
+  if (!project) {
+    checksSignature = undefined;
+    checksScript.replaceChildren(new Option('Selecione um script', ''));
+    checksScript.disabled = true;
+    updateCheckControls();
+    byId('checks-runs').replaceChildren();
+    setText('checks-status', 'Selecione um projeto para localizar os scripts.');
+    return;
+  }
+  try {
+    const query = new URLSearchParams({ view: 'checks', project });
+    const { scripts, runs } = await request('?' + query);
+    if (sequence !== checksRequest) return;
+    const signature = JSON.stringify([project, scripts, runs]);
+    const available = scripts.map(script => ({ id: script }));
+    if (checksSignature !== signature) {
+      checksSignature = signature;
+      options(checksScript, available, script => script.id, 'Selecione um script');
+      fill('checks-runs', runs, run => {
+        const duration = run.durationMs == null ? '' : (run.durationMs / 1000).toFixed(1) + ' s';
+        const status = labels[run.status] || ({ passed: 'Aprovado', timed_out: 'Tempo limite' })[run.status] || run.status;
+        const item = row(run.script, [status, duration].filter(Boolean).join(' · '));
+        if (run.output) {
+          const logs = element('details');
+          logs.append(element('summary', 'Saída'), element('pre', run.output, 'check-output'));
+          item.append(logs);
+        }
+        if (run.status === 'running') {
+          const cancel = element('button', 'Interromper', 'button button-quiet');
+          cancel.type = 'button';
+          cancel.dataset.cancelCheck = run.id;
+          item.append(cancel);
+        }
+        return item;
+      }, 'Nenhuma execução neste projeto.');
+    }
+    checksScript.disabled = !available.length;
+    updateCheckControls();
+    setText('checks-status', available.length ? '' : 'Este projeto não tem scripts de qualidade compatíveis.');
+  } catch (error) {
+    if (sequence !== checksRequest) return;
+    checksScript.disabled = true;
+    updateCheckControls();
+    setText('checks-status', error.message);
+  }
+}
+
+async function submitCheck(action, data) {
+  if (checksPending) return;
+  checksPending = true;
+  updateCheckControls();
+  try {
+    await request('', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action, data: { projectId: checksProject.value, ...data } }),
+    });
+    await refreshChecks();
+  } catch (error) {
+    setText('checks-status', error.message);
+  } finally {
+    checksPending = false;
+    updateCheckControls();
+  }
 }
 
 function update(snapshot) {
@@ -277,6 +369,40 @@ document.addEventListener('click', async event => {
   }
 });
 
+document.addEventListener('click', async event => {
+  const button = event.target.closest('[data-plan], [data-accept-plan]');
+  if (!button) return;
+  button.disabled = true;
+  try {
+    if (button.dataset.acceptPlan) {
+      await mutate('objective.plan', { id: button.dataset.acceptPlan });
+      return;
+    }
+    const query = new URLSearchParams({ view: 'plan', objective: button.dataset.plan });
+    const { steps } = await request('?' + query);
+    const preview = element('div');
+    preview.setAttribute('aria-live', 'polite');
+    if (!steps.length) {
+      preview.textContent = 'Nenhuma etapa explícita foi identificada. Cadastre as tarefas manualmente.';
+    } else {
+      const list = element('ol');
+      for (const step of steps) {
+        const dependencies = step.dependencies.map(index => index + 1).join(', ');
+        list.append(element('li', [step.title, planRoles[step.role], 'perfil ' + modelTiers[step.modelTier], dependencies && 'depende de ' + dependencies].filter(Boolean).join(' · ')));
+      }
+      const accept = element('button', 'Registrar tarefas do rascunho', 'button');
+      accept.type = 'button';
+      accept.dataset.acceptPlan = button.dataset.plan;
+      preview.append(list, accept);
+    }
+    button.replaceWith(preview);
+  } catch (error) {
+    setText('form-feedback', error.message);
+  } finally {
+    button.disabled = false;
+  }
+});
+
 function highlightSection() {
   const hash = location.hash || '#visao';
   for (const link of document.querySelectorAll('[data-section]')) {
@@ -287,6 +413,22 @@ function highlightSection() {
   }
 }
 byId('refresh-command').addEventListener('click', refresh);
+checksProject.addEventListener('change', () => {
+  checksScript.disabled = true;
+  updateCheckControls();
+  byId('checks-runs').replaceChildren();
+  setText('checks-status', 'Localizando scripts…');
+  refreshChecks();
+});
+checksScript.addEventListener('change', updateCheckControls);
+checksStart.addEventListener('click', () => submitCheck('check.start', { script: checksScript.value }));
+byId('checks-runs').addEventListener('click', event => {
+  const button = event.target.closest('[data-cancel-check]');
+  if (button) submitCheck('check.cancel', { id: button.dataset.cancelCheck });
+});
+setInterval(() => {
+  if (!document.hidden && checksProject.value && !checksPending) refreshChecks();
+}, 3000);
 window.addEventListener('hashchange', highlightSection);
 highlightSection();
 for (const key of ['theme', 'density']) {

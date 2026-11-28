@@ -5,6 +5,7 @@ import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { setTimeout as delay } from 'node:timers/promises';
 import { createCommandApi } from './api.mjs';
 
 test('persists workflow, gates dependent tasks and inspects a real Git worktree', async t => {
@@ -89,4 +90,53 @@ test('serializes concurrent mutations and keeps audit free of supplied titles', 
   assert.doesNotMatch(auditText, /private objective title|private task title/);
   assert.equal((await fetch(origin, { headers: { 'sec-fetch-site': 'same-site' } })).status, 403);
   assert.equal((await post('task.state', { id: snapshot.tasks[0].id, state: 'done' }, { 'sec-fetch-site': 'same-site' })).status, 403);
+});
+
+test('previews and registers a dependent plan and executes a project script over HTTP', async t => {
+  const folder = await mkdtemp(join(tmpdir(), 'projeto-all-command-workflow-'));
+  const handler = createCommandApi(join(folder, 'command.json'), () => ({ status: 'ready', projects: [] }));
+  const server = createServer((request, response) => handler(request, response, {}));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(async () => {
+    await handler.close();
+    await new Promise(resolve => server.close(resolve));
+    await rm(folder, { recursive: true, force: true });
+  });
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  const post = (action, data) => fetch(origin, {
+    method: 'POST', headers: { origin, 'content-type': 'application/json' },
+    body: JSON.stringify({ action, data }),
+  });
+  const body = async response => {
+    const result = await response.json();
+    assert.equal(response.status, 200, JSON.stringify(result));
+    return result;
+  };
+  await writeFile(join(folder, 'package.json'), JSON.stringify({ scripts: { test: 'node verify.cjs' } }));
+  await writeFile(join(folder, 'verify.cjs'), 'console.log("fixture completed");\n');
+  const { projects: [project] } = await body(await post('project.create', { name: 'Workflow', path: folder }));
+  const title = 'Analise o projeto; implemente a tela; execute os testes';
+  const { objectives: [objective] } = await body(await post('objective.create', { projectId: project.id, title }));
+  const { steps } = await body(await fetch(origin + '/?view=plan&objective=' + objective.id));
+  assert.equal(steps.length, 3);
+  const { tasks } = await body(await post('objective.plan', { id: objective.id }));
+  assert.deepEqual(tasks.map(task => task.dependencies), steps.map(step => step.dependencies.map(index => tasks[index].id)));
+  assert.equal((await post('objective.plan', { id: objective.id })).status, 400);
+
+  const checksUrl = origin + '/?view=checks&project=' + project.id;
+  assert.deepEqual((await body(await fetch(checksUrl))).scripts, ['test']);
+  assert.equal((await post('check.start', { projectId: project.id, script: 'deploy' })).status, 400);
+  assert.equal((await post('check.cancel', { projectId: project.id, id: 'missing' })).status, 404);
+  const { run } = await body(await post('check.start', { projectId: project.id, script: 'test' }));
+  let completed;
+  const deadline = Date.now() + 15000;
+  while (Date.now() < deadline) {
+    const { runs } = await body(await fetch(checksUrl));
+    completed = runs.find(entry => entry.id === run.id);
+    if (completed?.output?.includes('fixture completed') && completed.durationMs != null) break;
+    await delay(100);
+  }
+  assert.match(completed.output, /fixture completed/);
+  assert.equal(completed.status, 'passed');
+  assert.ok(completed.durationMs >= 0);
 });

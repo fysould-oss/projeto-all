@@ -1,5 +1,7 @@
 import { createStore } from './store.mjs';
 import { inspectProject, resources } from './inspect.mjs';
+import { draftPlan } from './plan.mjs';
+import { createChecks } from './checks.mjs';
 
 const json = { 'Content-Type': 'application/json; charset=utf-8' };
 
@@ -19,13 +21,14 @@ async function readAction(request) {
 }
 
 export function createCommandApi(file, getActivity) {
+  const checks = createChecks();
   let store;
   const open = () => store ??= createStore(file).catch(error => {
     store = undefined;
     throw error;
   });
 
-  return async (request, response, headers) => {
+  const handle = async (request, response, headers) => {
     const method = request.method;
     const origin = 'http://' + request.headers.host;
     if (['cross-site', 'same-site'].includes(request.headers['sec-fetch-site'])
@@ -53,6 +56,22 @@ export function createCommandApi(file, getActivity) {
       }
       try {
         const { action, data } = await readAction(request);
+        if (['check.start', 'check.cancel'].includes(action)) {
+          const project = database.snapshot().projects.find(entry => entry.id === data?.projectId);
+          if (!project) {
+            send(response, headers, 404, { error: 'Projeto não encontrado.' });
+            return;
+          }
+          const run = action === 'check.start'
+            ? await checks.start(project, data.script)
+            : await checks.cancel(project, data.id);
+          if (!run) {
+            send(response, headers, 404, { error: 'Execução não encontrada.' });
+            return;
+          }
+          send(response, headers, 200, { run });
+          return;
+        }
         await database.mutate(action, data);
         send(response, headers, 200, database.snapshot());
       } catch (error) {
@@ -63,6 +82,28 @@ export function createCommandApi(file, getActivity) {
     }
     const snapshot = database.snapshot();
     const kind = url.searchParams.get('view');
+    if (kind === 'checks') {
+      const project = snapshot.projects.find(entry => entry.id === url.searchParams.get('project'));
+      if (!project) {
+        send(response, headers, 404, { error: 'Projeto não encontrado.' });
+        return;
+      }
+      try {
+        send(response, headers, 200, { scripts: await checks.available(project), runs: checks.list(project) });
+      } catch {
+        send(response, headers, 422, { error: 'Não foi possível ler os scripts do projeto.' });
+      }
+      return;
+    }
+    if (kind === 'plan') {
+      const objective = snapshot.objectives.find(entry => entry.id === url.searchParams.get('objective'));
+      if (!objective) {
+        send(response, headers, 404, { error: 'Objetivo não encontrado.' });
+        return;
+      }
+      send(response, headers, 200, { steps: draftPlan(objective.title) });
+      return;
+    }
     if (['status', 'diff', 'check'].includes(kind)) {
       const project = snapshot.projects.find(entry => entry.id === url.searchParams.get('project'));
       if (!project) {
@@ -87,4 +128,6 @@ export function createCommandApi(file, getActivity) {
       resources: resources(),
     });
   };
+  handle.close = () => checks.close();
+  return handle;
 }
