@@ -271,6 +271,19 @@ function highlightSection() {
 byId('refresh-command').addEventListener('click', refresh);
 window.addEventListener('hashchange', highlightSection);
 highlightSection();
+for (const key of ['theme', 'density']) {
+  const control = byId(key);
+  try {
+    const saved = localStorage.getItem('projeto-all.' + key);
+    if (Array.from(control.options).some(option => option.value === saved)) control.value = saved;
+  } catch {}
+  const apply = () => { document.documentElement.dataset[key] = control.value; };
+  control.addEventListener('change', () => {
+    apply();
+    try { localStorage.setItem('projeto-all.' + key, control.value); } catch {}
+  });
+  apply();
+}
 try {
   if (localStorage.getItem('projeto-all.task-view') === 'board') byId('task-view').value = 'board';
 } catch {}

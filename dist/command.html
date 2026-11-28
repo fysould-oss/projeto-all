@@ -70,6 +70,13 @@
           <section class="panel" id="historico" data-panel="historico" aria-labelledby="history-title"><header class="panel-header"><div><p class="eyebrow">AUDITORIA</p><h2 id="history-title">Histórico</h2></div></header><div id="history-list" class="timeline"><p class="empty-state">Nenhum evento registrado.</p></div></section>
         </div>
 
+        <details class="panel display-settings">
+          <summary>Prefer?ncias de visualiza??o</summary>
+          <div class="inspection-controls">
+            <label>Tema <select id="theme"><option value="dark">Escuro</option><option value="light">Claro</option><option value="auto">Autom?tico</option></select></label>
+            <label>Densidade <select id="density"><option value="comfortable">Confort?vel</option><option value="compact">Compacta</option></select></label>
+          </div>
+        </details>
         <section class="panel forms-panel" id="actions" aria-labelledby="actions-title"><header class="panel-header"><div><p class="eyebrow">AÇÕES LOCAIS</p><h2 id="actions-title">Registrar trabalho</h2></div><span class="panel-meta">persistido no serviço local</span></header><div class="forms-grid">
           <form id="project-form" data-action="project.create"><h3>Novo projeto</h3><label>Nome<input name="name" required autocomplete="off" placeholder="projeto-all"></label><label>Caminho<input name="path" required autocomplete="off" placeholder="C:\\workspace\\projeto"></label><button class="button" type="submit">Adicionar projeto</button></form>
           <form id="objective-form" data-action="objective.create"><h3>Novo objetivo</h3><label>Projeto<select name="projectId" id="objective-project" required><option value="">Selecione um projeto</option></select></label><label>Título<input name="title" required autocomplete="off" placeholder="Descrever o resultado"></label><button class="button" type="submit">Criar objetivo</button></form>
