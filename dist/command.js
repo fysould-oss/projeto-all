@@ -57,23 +57,12 @@ function activeDependencies() {
 
 function render() {
   const getProject = id => state.projects.find(entry => entry.id === id)?.name;
-  const getObjective = id => state.objectives.find(entry => entry.id === id)?.title;
   fill('project-list', state.projects, project => row(project.name, project.path), 'Cadastre a pasta de um projeto para começar.');
   fill('coordinator-detail', state.objectives, objective => {
     const tasks = state.tasks.filter(task => task.objectiveId === objective.id);
     return row(objective.title, [getProject(objective.projectId), tasks.filter(task => task.state === 'done').length + '/' + tasks.length + ' concluídas'].join(' · '));
   }, 'Crie um objetivo depois de cadastrar um projeto.');
-  fill('tasks-list', state.tasks, task => {
-    const dependencies = task.dependencies.map(id => state.tasks.find(entry => entry.id === id)?.title).filter(Boolean);
-    const item = row(task.title, [getObjective(task.objectiveId), dependencies.length ? 'Depende de ' + dependencies.join(', ') : 'Sem dependências'].join(' · '));
-    const select = element('select');
-    select.setAttribute('aria-label', 'Estado de ' + task.title);
-    select.dataset.task = task.id;
-    for (const [value, title] of Object.entries(labels)) select.add(new Option(title, value));
-    select.value = task.state;
-    item.append(select);
-    return item;
-  }, 'Adicione uma tarefa ao plano do objetivo.');
+  renderTasks();
   fill('history-list', state.audit.slice(-50).reverse(), entry =>
     row(actionLabels[entry.action] || entry.action, new Date(entry.at).toLocaleString('pt-BR')),
   'As ações realizadas nesta central aparecem aqui.');
@@ -87,6 +76,34 @@ function render() {
   setText('metric-projects', state.projects.length);
   setText('metric-objectives', state.objectives.length);
   setText('metric-tasks', state.tasks.filter(task => task.state === 'running').length);
+}
+
+function renderTasks() {
+  const getObjective = id => state.objectives.find(entry => entry.id === id)?.title;
+  function taskRow(task) {
+    const dependencies = task.dependencies.map(id => state.tasks.find(entry => entry.id === id)?.title).filter(Boolean);
+    const item = row(task.title, [getObjective(task.objectiveId), dependencies.length ? 'Depende de ' + dependencies.join(', ') : 'Sem dependências'].join(' · '));
+    const select = element('select');
+    select.setAttribute('aria-label', 'Estado de ' + task.title);
+    select.dataset.task = task.id;
+    for (const [value, title] of Object.entries(labels)) select.add(new Option(title, value));
+    select.value = task.state;
+    item.append(select);
+    return item;
+  }
+  const list = byId('tasks-list');
+  const isBoard = byId('task-view').value === 'board' && state.tasks.length > 0;
+  list.classList.toggle('kanban', isBoard);
+  if (!isBoard) {
+    fill('tasks-list', state.tasks, taskRow, 'Adicione uma tarefa ao plano do objetivo.');
+    return;
+  }
+  list.replaceChildren(...Object.entries(labels).map(([status, label]) => {
+    const tasks = state.tasks.filter(task => task.state === status);
+    const column = element('section', undefined, 'kanban-column');
+    column.append(element('h3', label + ' ? ' + tasks.length), ...tasks.map(taskRow));
+    return column;
+  }));
 }
 
 function prepareGit(id, actions) {
@@ -205,6 +222,10 @@ document.addEventListener('submit', async event => {
 
 document.addEventListener('change', async event => {
   const input = event.target;
+  if (input.id === 'task-view') {
+    try { localStorage.setItem('projeto-all.task-view', input.value); } catch {}
+    renderTasks();
+  }
   if (input.name === 'objectiveId') activeDependencies();
   if (!input.dataset.task) return;
   input.disabled = true;
@@ -250,6 +271,9 @@ function highlightSection() {
 byId('refresh-command').addEventListener('click', refresh);
 window.addEventListener('hashchange', highlightSection);
 highlightSection();
+try {
+  if (localStorage.getItem('projeto-all.task-view') === 'board') byId('task-view').value = 'board';
+} catch {}
 await refresh();
 setInterval(refresh, 5000);
 document.addEventListener('visibilitychange', refresh);
