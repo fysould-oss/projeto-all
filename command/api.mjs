@@ -5,6 +5,9 @@ import { createChecks } from './checks.mjs';
 import { listFiles } from './index.mjs';
 import { listRemotes } from './push.mjs';
 import { objectiveGraph } from './graph.mjs';
+import { readCoordinatorJobs } from './coordinator-status.mjs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 
 const json = { 'Content-Type': 'application/json; charset=utf-8' };
 
@@ -23,7 +26,9 @@ async function readAction(request) {
   return JSON.parse(Buffer.concat(chunks).toString('utf8'));
 }
 
-export function createCommandApi(file, getActivity) {
+export function createCommandApi(file, getActivity, {
+  coordinatorDirectory = process.env.PROJETO_ALL_COORDINATOR_HOME || join(homedir(), '.projeto-all', 'coordinator'),
+} = {}) {
   const checks = createChecks();
   const taskChecks = new Set();
   let store;
@@ -143,7 +148,7 @@ export function createCommandApi(file, getActivity) {
             send(response, headers, 404, { error: 'Execução não encontrada.' });
             return;
           }
-          if (action === 'check.start') followRun(project, run, () => {});
+          if (action === 'check.start') followRun(project, run, result => database.recordCheck(project.id, result));
           send(response, headers, 200, { run });
           return;
         }
@@ -158,6 +163,11 @@ export function createCommandApi(file, getActivity) {
     }
     const snapshot = database.snapshot();
     const kind = url.searchParams.get('view');
+    if (kind === 'coordinator-jobs') {
+      const result = await readCoordinatorJobs(coordinatorDirectory);
+      send(response, headers, 200, result);
+      return;
+    }
     if (kind === 'graph') {
       const graph = objectiveGraph(snapshot, url.searchParams.get('objective'));
       if (!graph) {
@@ -201,7 +211,10 @@ export function createCommandApi(file, getActivity) {
         return;
       }
       try {
-        send(response, headers, 200, { scripts: await checks.available(project), runs: checks.list(project) });
+        const runs = new Map(database.checkHistory(project.id).map(run => [run.id, run]));
+        for (const run of checks.list(project)) runs.set(run.id, run);
+        const recent = [...runs.values()].sort((left, right) => (right.startedAt || '').localeCompare(left.startedAt || ''));
+        send(response, headers, 200, { scripts: await checks.available(project), runs: recent });
       } catch {
         send(response, headers, 422, { error: 'Não foi possível ler os scripts do projeto.' });
       }

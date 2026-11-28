@@ -21,6 +21,8 @@ const actionLabels = {
   'approval.failed': 'Falha ao tentar o commit',
   'approval.interrupted': 'Execução interrompida',
   'preview.save': 'Preview salvo',
+  'check.passed': 'Verificação aprovada', 'check.failed': 'Verificação falhou',
+  'check.cancelled': 'Verificação cancelada', 'check.timed_out': 'Verificação excedeu o tempo limite',
   'task.check': 'Verificação da tarefa iniciada', 'task.check.passed': 'Verificação da tarefa aprovada',
   'task.check.failed': 'Verificação da tarefa falhou', 'task.check.cancelled': 'Verificação da tarefa cancelada',
   'task.check.timed_out': 'Verificação excedeu o tempo limite', 'task.check.interrupted': 'Verificação da tarefa interrompida',
@@ -33,6 +35,12 @@ let previewReloadTimer;
 let graphRequest = 0;
 let graphObjective = '';
 let graphRevision;
+let coordinatorJobs = { available: false, jobs: [] };
+let coordinatorJobsLoading = false;
+let coordinatorJobsVisible = false;
+let coordinatorJobsRequest = 0;
+let coordinatorJobsObserver;
+let coordinatorJobsTimer;
 
 function element(tag, text, className) {
   const node = document.createElement(tag);
@@ -56,6 +64,69 @@ function row(title, detail) {
   const article = element('article', undefined, 'record-row');
   article.append(element('strong', title), element('p', detail));
   return article;
+}
+
+function renderCoordinatorJobs() {
+  const list = byId('coordinator-jobs-list');
+  const meta = byId('coordinator-jobs-meta');
+  const status = byId('coordinator-jobs-status');
+  if (!list || !meta || !status) return;
+  if (!coordinatorJobs.available) {
+    meta.textContent = 'indisponível';
+    status.textContent = 'Fila do executor local indisponível.';
+    list.replaceChildren();
+    return;
+  }
+  const jobs = Array.isArray(coordinatorJobs.jobs) ? coordinatorJobs.jobs : [];
+  meta.textContent = jobs.length + (jobs.length === 1 ? ' execução' : ' execuções');
+  status.textContent = jobs.length ? '' : 'A fila local está vazia.';
+  fill('coordinator-jobs-list', jobs, job => {
+    const item = element('article', undefined, 'executor-job-row');
+    const title = element('div', undefined, 'executor-job-title');
+    const states = { queued: 'Na fila', running: 'Em execução', done: 'Concluída', failed: 'Falhou', waiting_remote: 'Aguardando executor' };
+    title.append(element('strong', job.project), element('span', states[job.status] || 'Estado indisponível', 'job-status'));
+    const detail = [job.id, job.slot && 'vaga ' + String(job.slot).toUpperCase(),
+      job.submitted && 'enviado ' + new Date(job.submitted).toLocaleString('pt-BR'),
+      job.updated && 'atualizado ' + new Date(job.updated).toLocaleString('pt-BR'),
+      job.files != null && job.files + ' arquivo(s) observado(s)'].filter(Boolean);
+    item.append(title, element('p', detail.join(' · ')));
+    return item;
+  }, 'Nenhuma execução registrada.');
+}
+
+async function refreshCoordinatorJobs(explicit = false) {
+  if ((!explicit && (!coordinatorJobsVisible || document.hidden)) || coordinatorJobsLoading) return;
+  coordinatorJobsLoading = true;
+  const requestId = ++coordinatorJobsRequest;
+  try {
+    const result = await request('?view=coordinator-jobs');
+    if (requestId !== coordinatorJobsRequest) return;
+    coordinatorJobs = { available: result?.available === true, jobs: Array.isArray(result?.jobs) ? result.jobs : [] };
+  } catch {
+    if (requestId !== coordinatorJobsRequest) return;
+    coordinatorJobs = { available: false, jobs: [] };
+  } finally {
+    coordinatorJobsLoading = false;
+    renderCoordinatorJobs();
+  }
+}
+
+function configureCoordinatorJobsPolling() {
+  const panel = byId('coordinator-jobs');
+  byId('coordinator-jobs-refresh').addEventListener('click', () => void refreshCoordinatorJobs(true));
+  if (!panel || !('IntersectionObserver' in window)) return;
+  coordinatorJobsObserver = new IntersectionObserver(entries => {
+    const visible = entries.some(entry => entry.isIntersecting);
+    coordinatorJobsVisible = visible;
+    if (visible) {
+      void refreshCoordinatorJobs();
+      if (!coordinatorJobsTimer) coordinatorJobsTimer = setInterval(refreshCoordinatorJobs, 5000);
+    } else if (coordinatorJobsTimer) {
+      clearInterval(coordinatorJobsTimer);
+      coordinatorJobsTimer = undefined;
+    }
+  }, { threshold: 0.1 });
+  coordinatorJobsObserver.observe(panel);
 }
 
 function options(select, entries, label, placeholder) {
@@ -986,6 +1057,7 @@ setInterval(() => {
 }, 3000);
 window.addEventListener('hashchange', highlightSection);
 highlightSection();
+configureCoordinatorJobsPolling();
 for (const key of ['theme', 'density']) {
   const control = byId(key);
   try {
@@ -1006,4 +1078,8 @@ await refresh();
 setInterval(refresh, 5000);
 document.addEventListener('visibilitychange', refresh);
 window.addEventListener('online', refresh);
-window.addEventListener('pagehide', () => clearInterval(previewReloadTimer));
+window.addEventListener('pagehide', () => {
+  clearInterval(previewReloadTimer);
+  clearInterval(coordinatorJobsTimer);
+  coordinatorJobsObserver?.disconnect();
+});

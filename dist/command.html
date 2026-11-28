@@ -26,6 +26,7 @@
           <a class="nav-item is-active" href="#visao" data-section="visao"><span class="nav-icon">◈</span>Visão</a>
           <a class="nav-item" href="#projetos" data-section="projetos"><span class="nav-icon">▦</span>Projetos</a>
           <a class="nav-item" href="#coordenador" data-section="coordenador"><span class="nav-icon">◎</span>Coordenador</a>
+          <a class="nav-item" href="#coordinator-jobs" data-section="coordinator-jobs"><span class="nav-icon">▤</span>Executor Codex</a>
           <a class="nav-item" href="#dependency-graph" data-section="dependency-graph"><span class="nav-icon" aria-hidden="true">↗</span>Grafo</a>
           <a class="nav-item" href="#tarefas" data-section="tarefas"><span class="nav-icon">✓</span>Tarefas</a>
           <a class="nav-item" href="#git" data-section="git"><span class="nav-icon">⑂</span>Git</a>
@@ -57,6 +58,12 @@
             <header class="panel-header"><div><p class="eyebrow">ORQUESTRAÇÃO</p><h2 id="coordinator-title">Coordenador</h2></div><span class="live-label"><i></i>local</span></header>
             <div id="coordinator-status" class="coordinator-status"></div>
             <div id="coordinator-detail" class="detail-list"></div>
+          </section>
+          <section class="panel executor-jobs-panel" id="coordinator-jobs" data-panel="coordinator-jobs" aria-labelledby="coordinator-jobs-title">
+            <header class="panel-header"><h2 id="coordinator-jobs-title">Executor local Codex</h2><button class="button button-quiet" id="coordinator-jobs-refresh" type="button">Atualizar fila</button></header>
+            <p class="executor-jobs-status panel-meta" id="coordinator-jobs-meta"></p>
+            <p id="coordinator-jobs-status" class="executor-jobs-status" role="status">Aguardando a fila local.</p>
+            <div id="coordinator-jobs-list" class="executor-jobs-list" aria-live="polite"></div>
           </section>
         </div>
 

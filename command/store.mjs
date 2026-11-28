@@ -7,6 +7,7 @@ import { prepareCommit, executeCommit } from './commit.mjs';
 import { changeIndex } from './index.mjs';
 import { preparePush, executePush } from './push.mjs';
 import { normalizePreviewUrl } from './previews.mjs';
+import { mergeCheckHistory } from './check-history.mjs';
 
 const STATES = new Set(['pending', 'running', 'blocked', 'review', 'done', 'failed', 'cancelled']);
 const ACTIONS = new Set(['project.create', 'objective.create', 'objective.plan', 'task.create', 'task.state', 'preview.save']);
@@ -23,7 +24,7 @@ const text = (value, label) => {
 const id = value => typeof value === 'string' && value.length > 0 ? value : null;
 
 function emptySnapshot() {
-  return { version: 1, projects: [], objectives: [], tasks: [], approvals: [], previews: [], audit: [] };
+  return { version: 1, projects: [], objectives: [], tasks: [], approvals: [], previews: [], checkHistory: [], audit: [] };
 }
 
 function expired(approval) {
@@ -77,6 +78,7 @@ export async function createStore(path) {
   }
 
   state.approvals ??= [];
+  state.checkHistory = mergeCheckHistory(state.checkHistory);
   state.previews ??= [];
   if (!Array.isArray(state.previews)) throw new TypeError('invalid previews snapshot');
   state.previews = state.previews.flatMap(preview => {
@@ -246,7 +248,16 @@ export async function createStore(path) {
       task.state = run.status === 'passed' ? 'done' : run.status === 'cancelled' ? 'cancelled' : 'failed';
     }
     task.updatedAt = now();
+    const projectId = next.objectives.find(item => item.id === task.objectiveId)?.projectId;
+    if (projectId) next.checkHistory = mergeCheckHistory(next.checkHistory, projectId, run);
     await save(next, 'task.check.' + run.status, {}, task);
+  }
+
+  async function recordCheck(projectId, run) {
+    if (!run) return;
+    const next = clone(state);
+    next.checkHistory = mergeCheckHistory(next.checkHistory, projectId, run);
+    await save(next, 'check.' + run.status, {}, run);
   }
 
   async function controlObjective(data) {
@@ -354,11 +365,13 @@ export async function createStore(path) {
   return {
     snapshot() {
       const snapshot = clone(state);
+      delete snapshot.checkHistory;
       snapshot.approvals = snapshot.approvals.map(({ prepared, ...approval }) => ({
         ...approval, state: expired(approval) ? 'expired' : approval.state,
       }));
       return snapshot;
     },
+    checkHistory(projectId) { return clone(state.checkHistory.filter(run => run.projectId === projectId)); },
     approvalDiffContext(approvalId) {
       const approval = state.approvals.find(item => item.id === approvalId && item.kind === 'git.commit');
       const project = state.projects.find(item => item.id === approval?.projectId);
@@ -369,6 +382,7 @@ export async function createStore(path) {
     },
     beginTaskCheck(data, checks, scheduled = false) { return serialize(() => beginTaskCheck(data, checks, scheduled)); },
     finishTaskCheck(taskId, run) { return serialize(() => finishTaskCheck(taskId, run)); },
+    recordCheck(projectId, run) { return serialize(() => recordCheck(projectId, run)); },
     scheduleTask(data, checks) { return serialize(() => scheduleTask(data, checks)); },
     failScheduledTask(id, script) { return serialize(() => failScheduledTask(id, script)); },
     controlObjective(data) { return serialize(() => controlObjective(data)); },

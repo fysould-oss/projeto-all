@@ -732,6 +732,14 @@ main select { background: var(--bg-deep); color: var(--text); border: 1px solid 
 pre[data-git-output] { overflow: auto; max-height: 24rem; white-space: pre-wrap; overflow-wrap: anywhere; font: 0.75rem var(--mono); }
 a:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
 section[id] { scroll-margin-top: 6rem; }
+.executor-jobs-panel { min-height: 10rem; }
+.executor-jobs-status { color: var(--muted); margin: 0 0 0.75rem; }
+.executor-jobs-list { display: grid; gap: 0.55rem; }
+.executor-job-row { border: 1px solid var(--line); border-radius: 0.45rem; padding: 0.7rem 0.8rem; background: color-mix(in srgb, var(--panel) 86%, transparent); }
+.executor-job-row p { margin: 0.35rem 0 0; color: var(--muted); font-size: 0.78rem; }
+.executor-job-title { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; }
+.job-status { color: var(--accent); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.job-files, .job-result { overflow-wrap: anywhere; }
 .activity-chart { min-height: 5rem; height: auto; align-items: center; color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 

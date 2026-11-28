@@ -103,7 +103,8 @@ test('serializes concurrent mutations and keeps audit free of supplied titles', 
 
 test('previews and registers a dependent plan and executes a project script over HTTP', async t => {
   const folder = await mkdtemp(join(tmpdir(), 'projeto-all-command-workflow-'));
-  const handler = createCommandApi(join(folder, 'command.json'), () => ({ status: 'ready', projects: [] }));
+  const openHandler = () => createCommandApi(join(folder, 'command.json'), () => ({ status: 'ready', projects: [] }));
+  let handler = openHandler();
   const server = createServer((request, response) => handler(request, response, {}));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   t.after(async () => {
@@ -148,6 +149,14 @@ test('previews and registers a dependent plan and executes a project script over
   assert.match(completed.output, /fixture completed/);
   assert.equal(completed.status, 'passed');
   assert.ok(completed.durationMs >= 0);
+  await handler.close();
+  assert.doesNotMatch(await readFile(join(folder, 'command.json'), 'utf8'), /fixture completed|"output"/);
+  handler = openHandler();
+  const history = (await body(await fetch(checksUrl))).runs;
+  const restored = history.find(entry => entry.id === run.id);
+  assert.equal(restored.status, 'passed');
+  assert.equal(restored.durationMs, completed.durationMs);
+  assert.equal(Object.hasOwn(restored, 'output'), false);
 });
 
 test('requires a current approval and commits exactly the reviewed Git index', async t => {
