@@ -1352,9 +1352,32 @@ const searchDialog = byId('global-search');
 const searchQuery = byId('global-search-query');
 const searchResults = byId('global-search-results');
 const normalizeSearch = value => String(value ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('pt-BR');
+function renderPalette(query) {
+  const links = [...document.querySelectorAll('#command-navigation [data-section]')]
+    .map(link => ({ label: 'Abrir ' + link.title, href: link.hash }));
+  const commands = [{ label: 'Atualizar dados locais', action: 'refresh' }, ...links];
+  const terms = normalizeSearch(query).trim().split(/\s+/).filter(Boolean);
+  const matches = commands.filter(command => terms.every(term => normalizeSearch(command.label).includes(term)));
+  for (const command of matches) {
+    const item = element('li');
+    const control = element(command.href ? 'a' : 'button', command.label);
+    if (command.href) control.href = command.href;
+    else {
+      control.type = 'button';
+      control.dataset.command = command.action;
+    }
+    item.append(control);
+    searchResults.append(item);
+  }
+  setText('global-search-status', matches.length
+    ? matches.length + (matches.length === 1 ? ' comando' : ' comandos')
+    : 'Nenhum comando encontrado.');
+}
 function renderGlobalSearch() {
-  const terms = normalizeSearch(searchQuery.value).trim().split(/\s+/).filter(Boolean);
   searchResults.replaceChildren();
+  const query = searchQuery.value.trim();
+  if (query.startsWith('>')) return renderPalette(query.slice(1));
+  const terms = normalizeSearch(query).split(/\s+/).filter(Boolean);
   if (!terms.length) return setText('global-search-status', 'Digite um nome, título ou ID.');
   const projects = new Map(state.projects.map(project => [project.id, project.name]));
   const objectives = new Map(state.objectives.map(objective => [objective.id, objective]));
@@ -1393,13 +1416,18 @@ byId('global-search-close').addEventListener('click', () => searchDialog.close()
 searchQuery.addEventListener('input', renderGlobalSearch);
 searchQuery.addEventListener('keydown', event => {
   if (event.key !== 'Enter' && event.key !== 'ArrowDown') return;
-  const first = searchResults.querySelector('a');
+  const first = searchResults.querySelector('a, button');
   if (!first) return;
   event.preventDefault();
   if (event.key === 'Enter') first.click();
   else first.focus();
 });
 searchResults.addEventListener('click', event => {
+  if (event.target.closest('button[data-command="refresh"]')) {
+    searchDialog.close();
+    void refresh();
+    return;
+  }
   const link = event.target.closest('a');
   if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
   searchDialog.close();
@@ -1408,6 +1436,15 @@ searchResults.addEventListener('click', event => {
     target.tabIndex = -1;
     target.focus({ preventScroll: true });
   }
+});
+searchResults.addEventListener('keydown', event => {
+  if (!['ArrowDown', 'ArrowUp'].includes(event.key)) return;
+  const controls = [...searchResults.querySelectorAll('a, button')];
+  const index = controls.indexOf(event.target);
+  if (index < 0) return;
+  event.preventDefault();
+  if (index === 0 && event.key === 'ArrowUp') searchQuery.focus();
+  else controls[index + (event.key === 'ArrowDown' ? 1 : -1)]?.focus();
 });
 window.addEventListener('keydown', event => {
   if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'k') return;

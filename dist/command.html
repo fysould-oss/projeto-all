@@ -20,8 +20,9 @@
       <button type="button" class="button button-quiet" id="global-search-open" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K">Buscar <kbd>Ctrl/⌘ K</kbd></button>
     </header>
     <dialog id="global-search" aria-labelledby="global-search-title">
-      <div class="search-heading"><h2 id="global-search-title">Buscar na central</h2><button type="button" class="button button-quiet" id="global-search-close">Fechar</button></div>
-      <label>Projeto, objetivo ou tarefa <input id="global-search-query" type="search" maxlength="120" autofocus></label>
+      <div class="search-heading"><h2 id="global-search-title">Busca e comandos</h2><button type="button" class="button button-quiet" id="global-search-close">Fechar</button></div>
+      <label>Buscar registros ou comandos <input id="global-search-query" type="search" maxlength="120" aria-describedby="global-search-hint" autofocus></label>
+      <p id="global-search-hint">Digite <kbd>&gt;</kbd> para listar os comandos.</p>
       <p id="global-search-status" role="status"></p>
       <ul id="global-search-results"></ul>
     </dialog>
