@@ -2026,7 +2026,8 @@ function applyWidgetSettings(values) {
     .map(({ id, visible, wide }) => ({ id, visible, wide }));
   renderWidgetSettings();
 }
-const displayControls = ['theme', 'density', 'fontSize', 'sidebarWidth'].map(key => [key, byId(key)]);
+const displayControls = ['theme', 'density', 'fontSize', 'sidebarWidth', 'homeSection'].map(key => [key, byId(key)]);
+const optionalDisplayKeys = new Set(['sidebarWidth', 'homeSection']);
 const displayDefaults = Object.fromEntries(displayControls.map(([key, control]) => [key, control.value]));
 const validDisplayValue = (control, value) => Array.from(control.options).some(option => option.value === value);
 function applyDisplay(values) {
@@ -2040,7 +2041,7 @@ function displaySnapshot() {
 }
 function validDisplaySnapshot(values) {
   return values && displayControls.every(([key, control]) =>
-    (key === 'sidebarWidth' && !Object.hasOwn(values, key)) || validDisplayValue(control, values[key]))
+    (optionalDisplayKeys.has(key) && !Object.hasOwn(values, key)) || validDisplayValue(control, values[key]))
     && (!Object.hasOwn(values, 'widgets') || normalizeWidgets(values.widgets));
 }
 function loadDisplaySnapshot(values, message) {
@@ -2154,6 +2155,15 @@ byId('display-preset-remove').addEventListener('click', () => {
 try {
   if (localStorage.getItem('projeto-all.task-view') === 'board') byId('task-view').value = 'board';
 } catch {}
+const homeSection = byId('homeSection').value;
+if (!location.hash && homeSection !== 'visao') {
+  const target = byId(homeSection);
+  if (target) {
+    history.replaceState(history.state, '', '#' + homeSection);
+    target.scrollIntoView({ behavior: 'instant' });
+    highlightSection();
+  }
+}
 await refresh();
 setInterval(refresh, 5000);
 document.addEventListener('visibilitychange', refresh);
