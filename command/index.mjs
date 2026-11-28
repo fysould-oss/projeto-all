@@ -71,6 +71,30 @@ export async function inspectChangedPath(project, path, mode) {
   return { output };
 }
 
+export async function listRecentCommits(project) {
+  const cwd = repoPath(project);
+  await ensureRoot(cwd);
+  const raw = await git(cwd, ['--no-replace-objects', 'log', '--first-parent', '-n', '25',
+    '--format=%H%x00%cI%x00%s', '-z', 'HEAD', '--'], 'Não há histórico disponível no HEAD deste projeto.');
+  const fields = raw.split('\0');
+  const commits = [];
+  for (let i = 0; i + 2 < fields.length; i += 3) {
+    commits.push({ sha: fields[i], date: fields[i + 1], subject: fields[i + 2].slice(0, 240) });
+  }
+  return { commits };
+}
+
+export async function inspectRecentCommit(project, sha) {
+  if (typeof sha !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(sha)
+    || !(await listRecentCommits(project)).commits.some(commit => commit.sha === sha)) {
+    throw new Error('Selecione um commit do histórico recente do HEAD.');
+  }
+  const output = await git(repoPath(project), ['--no-replace-objects', 'show', '--format=', '--root', '--diff-merges=first-parent',
+    '--no-ext-diff', '--no-textconv', '--no-color', '--submodule=short', sha, '--'],
+  'Não foi possível consultar o diff deste commit dentro do limite de leitura.');
+  return { sha, output };
+}
+
 async function committedTree(cwd, revision) {
   await ensureRoot(cwd);
   const tree = (await git(cwd, ['--no-replace-objects', 'rev-parse', '--verify', 'HEAD^{tree}'], 'Não foi possível localizar uma árvore no HEAD.')).trim();

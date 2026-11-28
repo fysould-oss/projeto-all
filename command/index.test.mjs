@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { listFiles, changeIndex, inspectChangedPath, listCommittedPaths, readCommittedText } from './index.mjs';
+import { listFiles, changeIndex, inspectChangedPath, inspectRecentCommit, listCommittedPaths, listRecentCommits, readCommittedText } from './index.mjs';
 
 function run(cwd, args) {
   return new Promise((resolve, reject) => {
@@ -89,6 +89,24 @@ test('reads separate staged and unstaged diffs for a listed literal path', async
   assert.doesNotMatch(staged, /working|unrelated/);
   assert.doesNotMatch(worktree, /unrelated/);
   await assert.rejects(() => inspectChangedPath(dir, 'untracked.txt', 'unstaged'), /rastreado/);
+});
+
+test('lists first-parent commits and shows root and merge diffs', async t => {
+  const dir = await fixture(t);
+  const [{ sha: root }] = (await listRecentCommits(dir)).commits;
+  assert.match((await inspectRecentCommit(dir, root)).output, /^\+one$/m);
+  await run(dir, ['switch', '-c', 'side']);
+  await writeFile(join(dir, 'side.txt'), 'side file\n');
+  await run(dir, ['add', 'side.txt']);
+  await run(dir, ['commit', '-m', 'side commit']);
+  const [{ sha: side }] = (await listRecentCommits(dir)).commits;
+  await run(dir, ['switch', 'main']);
+  await assert.rejects(() => inspectRecentCommit(dir, side), /histórico recente/);
+  await run(dir, ['merge', '--no-ff', '-m', 'merge side', 'side']);
+  const { commits } = await listRecentCommits(dir);
+  assert.deepEqual(commits.map(commit => commit.subject), ['merge side', 'base']);
+  assert.match((await inspectRecentCommit(dir, commits[0].sha)).output, /^\+side file$/m);
+  await assert.rejects(() => inspectRecentCommit(dir, side), /histórico recente/);
 });
 
 test('lists and stages/unstages without changing worktree content', async t => {

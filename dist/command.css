@@ -802,6 +802,7 @@ td:first-child {
 main select { background: var(--bg-deep); color: var(--text); border: 1px solid var(--line); border-radius: 0.35rem; min-height: 2rem; max-width: 100%; }
 pre[data-git-output] { overflow: auto; max-height: 24rem; white-space: pre-wrap; overflow-wrap: anywhere; font: 0.75rem var(--mono); }
 pre[data-git-output] a { color: var(--cyan); }
+.git-commit-choice { max-inline-size: 100%; text-align: start; white-space: normal; overflow-wrap: anywhere; margin-block: .15rem; }
 .committed-path-list { list-style: none; padding: 0; margin-block: .5rem; max-block-size: 14rem; overflow: auto; }
 .committed-path-list button { text-align: start; overflow-wrap: anywhere; max-inline-size: 100%; }
 .committed-file-text { max-block-size: 24rem; overflow: auto; padding: .7rem; background: var(--bg-deep); }

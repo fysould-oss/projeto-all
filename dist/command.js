@@ -231,7 +231,8 @@ function render() {
   setText('tasks-count', state.tasks.filter(task => !['done', 'cancelled'].includes(task.state)).length + ' abertas');
   setText('coordinator-status', 'Rascunhos de plano e acompanhamento');
   prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff completo'], ['staged', 'Ver diff preparado'],
-    ['branches', 'Listar branches'], ['saved-refs', 'Listar tags e stashes'], ['github-pulls', 'Consultar PRs no GitHub']]);
+    ['branches', 'Listar branches'], ['saved-refs', 'Listar tags e stashes'], ['recent-commits', 'Ver histórico'],
+    ['github-pulls', 'Consultar PRs no GitHub']]);
   renderApprovals();
   renderPreviewPanel();
   renderGraphPanel();
@@ -1441,7 +1442,33 @@ document.addEventListener('click', async event => {
     const query = new URLSearchParams({ view: button.dataset.gitView, project });
     const result = await request('?' + query);
     if (projectSelect.value !== project) return;
-    if (button.dataset.gitView === 'branches') {
+    if (button.dataset.gitView === 'recent-commits') {
+      output.textContent = 'Até 25 commits na linha principal da branch atual. Selecione um para ver o diff.';
+      for (const commit of result.commits) {
+        const label = commit.sha.slice(0, 9) + ' · ' + new Date(commit.date).toLocaleString('pt-BR') + ' · ' + commit.subject;
+        const choice = element('button', label, 'button button-quiet git-commit-choice');
+        choice.type = 'button';
+        choice.addEventListener('click', async () => {
+          const detail = element('span', '\nConsultando diff…');
+          const back = element('button', 'Voltar ao histórico', 'button button-quiet');
+          back.type = 'button';
+          back.addEventListener('click', () => {
+            button.focus();
+            button.click();
+          });
+          output.replaceChildren(back, '\n', label, '\n', detail);
+          back.focus();
+          const params = new URLSearchParams({ view: 'commit-diff', project, sha: commit.sha });
+          try {
+            const { output: patch } = await request('?' + params);
+            detail.textContent = '\n' + (patch || 'Nenhuma alteração de arquivos neste commit.');
+          } catch (error) {
+            detail.textContent = '\n' + error.message;
+          }
+        });
+        output.append('\n', choice);
+      }
+    } else if (button.dataset.gitView === 'branches') {
       const trackingLabels = { '=': 'sincronizada', '>': 'à frente', '<': 'atrás', '<>': 'divergente' };
       const heading = result.current ? 'Branch ativa: ' + result.current : 'HEAD destacado: ' + result.detachedSha;
       const branches = result.branches.map(branch => {
