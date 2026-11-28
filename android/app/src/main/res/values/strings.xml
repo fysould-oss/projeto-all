@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="office_title">Escritório privado</string>
+    <string name="office_login">Abra o escritório no navegador e entre com a conta do ChatGPT que tem acesso ao painel.</string>
+    <string name="open_office">Abrir escritório no navegador</string>
+    <string name="browser_unavailable">Nenhum navegador disponível. Ative um navegador no Android e tente de novo.</string>
+</resources>

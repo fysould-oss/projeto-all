@@ -33,6 +33,13 @@ jobs:
           gradle-version: "8.11.1"
       - run: gradle --no-daemon --stacktrace :app:assembleDebug
         working-directory: android
+      - name: Verify APK
+        run: |
+          apk=android/app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs "$apk"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging "$apk" | tee /tmp/projeto-all-apk-badging
+          grep -F "package: name='com.fysould.projetoall'" /tmp/projeto-all-apk-badging
+          grep -F "launchable-activity: name='com.fysould.projetoall.MainActivity'" /tmp/projeto-all-apk-badging
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
