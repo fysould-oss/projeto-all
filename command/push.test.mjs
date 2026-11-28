@@ -5,7 +5,20 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { preparePush, executePush, githubRepository, summarizeGitHubChecks, summarizeGitHubStatuses } from './push.mjs';
+import { preparePush, executePush, githubRepository, summarizeGitHubChecks, summarizeGitHubStatuses, summarizeGitHubReviews } from './push.mjs';
+
+test('summarizes current reviews without letting comments overwrite decisions', () => {
+  const sha = 'a'.repeat(40);
+  const review = (id, state, commit_id = sha) => ({ user: { id }, state, commit_id });
+  assert.equal(summarizeGitHubReviews(null, sha), null);
+  assert.deepEqual(summarizeGitHubReviews([
+    review(1, 'CHANGES_REQUESTED'), review(1, 'APPROVED'), review(1, 'COMMENTED'),
+    review(2, 'APPROVED'), review(2, 'DISMISSED'),
+    review(3, 'CHANGES_REQUESTED', 'b'.repeat(40)), review(4, 'CHANGES_REQUESTED'),
+    review(5, 'PENDING'),
+  ], sha), { approved: 1, changesRequested: 1, earlier: 1, comments: 1, partial: false });
+  assert.equal(summarizeGitHubReviews(Array.from({ length: 100 }, () => review(1, 'COMMENTED')), sha).partial, true);
+});
 
 test('projects external commit statuses without arbitrary URLs and distinguishes an empty result', () => {
   const sha = 'a'.repeat(40);

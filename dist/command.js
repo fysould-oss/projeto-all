@@ -1342,6 +1342,15 @@ document.addEventListener('click', async event => {
           if (contexts.length) output.append(' · ' + contexts.join(', '));
           if (contexts.length < statuses.total) output.append(' · Lista parcial');
         }
+        const reviews = pull.reviews;
+        if (!reviews) output.append('\n  Resumo de revisões indisponível.');
+        else {
+          const items = [[reviews.approved, 'aprovações neste commit'], [reviews.changesRequested, 'pedidos de alterações neste commit'],
+            [reviews.earlier, 'decisões em commits anteriores'], [reviews.comments, 'revisões com comentários']];
+          const summary = items.filter(([count]) => count).map(([count, label]) => count + ' ' + label).join(', ');
+          output.append('\n  Revisões: ' + (summary || 'nenhuma decisão ou comentário reportado')
+            + (reviews.partial ? ' · Consulta parcial' : '') + '.');
+        }
       }
     } else {
       output.textContent = result.output || (result.passed ? 'Nenhum problema de espaço em branco nas alterações rastreadas.' : 'Nenhuma alteração rastreada.');
