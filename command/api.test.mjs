@@ -56,4 +56,37 @@ test('persists workflow, gates dependent tasks and inspects a real Git worktree'
   assert.ok(reopened.resources.total > 0);
   const diff = await (await fetch(origin + '/?view=diff&project=' + project.id)).json();
   assert.match(diff.output, /^\+changed$/m);
+  const cleanCheck = await (await fetch(origin + '/?view=check&project=' + project.id)).json();
+  assert.equal(cleanCheck.passed, true);
+  await writeFile(join(folder, 'sample.txt'), 'changed \n');
+  const failingCheck = await (await fetch(origin + '/?view=check&project=' + project.id)).json();
+  assert.equal(failingCheck.passed, false);
+  assert.match(failingCheck.output, /trailing whitespace/);
+});
+
+test('serializes concurrent mutations and keeps audit free of supplied titles', async t => {
+  const folder = await mkdtemp(join(tmpdir(), 'projeto-all-command-concurrent-'));
+  t.after(() => rm(folder, { recursive: true, force: true }));
+  const db = join(folder, 'command.json');
+  const handler = createCommandApi(db, () => ({ status: 'ready', projects: [] }));
+  const server = createServer((request, response) => handler(request, response, {}));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  const post = (action, data, headers = {}) => fetch(origin, {
+    method: 'POST', headers: { origin, 'content-type': 'application/json', ...headers },
+    body: JSON.stringify({ action, data }),
+  });
+  const { projects: [project] } = await (await post('project.create', { name: 'Concurrent', path: folder })).json();
+  const objective = (await (await post('objective.create', { projectId: project.id, title: 'private objective title' })).json()).objectives[0];
+  const responses = await Promise.all(Array.from({ length: 8 }, (_, index) =>
+    post('task.create', { objectiveId: objective.id, title: `private task title ${index}`, dependencies: [] })));
+  assert.ok(responses.every(response => response.status === 200));
+  const snapshot = await (await fetch(origin)).json();
+  assert.equal(snapshot.tasks.length, 8);
+  assert.equal(snapshot.audit.length, 10);
+  const auditText = JSON.stringify(snapshot.audit);
+  assert.doesNotMatch(auditText, /private objective title|private task title/);
+  assert.equal((await fetch(origin, { headers: { 'sec-fetch-site': 'same-site' } })).status, 403);
+  assert.equal((await post('task.state', { id: snapshot.tasks[0].id, state: 'done' }, { 'sec-fetch-site': 'same-site' })).status, 403);
 });
