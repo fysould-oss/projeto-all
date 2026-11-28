@@ -8,9 +8,10 @@ import { changeIndex } from './index.mjs';
 import { preparePush, executePush } from './push.mjs';
 import { normalizePreviewUrl } from './previews.mjs';
 import { mergeCheckHistory } from './check-history.mjs';
+import { notificationsFromAudit } from './notifications.mjs';
 
 const STATES = new Set(['pending', 'running', 'blocked', 'review', 'done', 'failed', 'cancelled']);
-const ACTIONS = new Set(['project.create', 'project.executorPolicy', 'objective.create', 'objective.plan', 'task.create', 'task.state', 'preview.save']);
+const ACTIONS = new Set(['project.create', 'project.executorPolicy', 'objective.create', 'objective.plan', 'task.create', 'task.state', 'preview.save', 'notification.read']);
 const APPROVAL_ACTIONS = new Set(['approval.request', 'approval.requestPush', 'approval.edit', 'approval.approve', 'approval.reject']);
 const INDEX_ACTIONS = new Set(['git.stage', 'git.unstage']);
 const APPROVAL_TTL_MS = 15 * 60 * 1000;
@@ -25,7 +26,7 @@ const text = (value, label) => {
 const id = value => typeof value === 'string' && value.length > 0 ? value : null;
 
 function emptySnapshot() {
-  return { version: 1, projects: [], objectives: [], tasks: [], approvals: [], previews: [], checkHistory: [], audit: [] };
+  return { version: 1, projects: [], objectives: [], tasks: [], approvals: [], previews: [], checkHistory: [], readNotifications: [], audit: [] };
 }
 
 function expired(approval) {
@@ -79,6 +80,7 @@ export async function createStore(path) {
   }
 
   state.approvals ??= [];
+  state.readNotifications = Array.isArray(state.readNotifications) ? state.readNotifications.filter(id => typeof id === 'string').slice(-50) : [];
   for (const project of state.projects) project.executorPolicy ??= { ...DEFAULT_EXECUTOR_POLICY };
   state.checkHistory = mergeCheckHistory(state.checkHistory);
   state.previews ??= [];
@@ -119,6 +121,17 @@ export async function createStore(path) {
     await persist(next);
     state = next;
     return clone(result);
+  }
+
+  async function readNotification(next, data) {
+    const notifications = notificationsFromAudit(next.audit, next.readNotifications);
+    if (data.all !== true && !notifications.some(item => item.id === data.id)) {
+      throw new Error('Notificação não encontrada.');
+    }
+    next.readNotifications = notifications.filter(item => data.all === true || item.read || item.id === data.id)
+      .map(item => item.id);
+    await persist(next);
+    state = next;
   }
 
   async function mutateApproval(action, data, next) {
@@ -385,6 +398,7 @@ export async function createStore(path) {
     if (!ACTIONS.has(action) && !APPROVAL_ACTIONS.has(action) && !INDEX_ACTIONS.has(action)) throw new TypeError('Ação desconhecida.');
     if (!data || typeof data !== 'object' || Array.isArray(data)) throw new TypeError('Dados da ação inválidos.');
     const next = clone(state);
+    if (action === 'notification.read') return readNotification(next, data);
     if (APPROVAL_ACTIONS.has(action)) return mutateApproval(action, data, next);
     if (INDEX_ACTIONS.has(action)) {
       const project = next.projects.find(item => item.id === data.projectId);
@@ -489,6 +503,8 @@ export async function createStore(path) {
     snapshot() {
       const snapshot = clone(state);
       delete snapshot.checkHistory;
+      snapshot.notifications = notificationsFromAudit(state.audit, state.readNotifications);
+      delete snapshot.readNotifications;
       snapshot.approvals = snapshot.approvals.map(({ prepared, ...approval }) => ({
         ...approval, state: expired(approval) ? 'expired' : approval.state,
       }));

@@ -22,9 +22,10 @@ const actionLabels = {
   'objective.plan': 'Tarefas do plano registradas', 'approval.request': 'Aprovação solicitada', 'approval.requestPush': 'Aprovação de push solicitada',
   'approval.approve': 'Aprovação encaminhada', 'approval.reject': 'Aprovação rejeitada',
   'approval.edit': 'Aprovação editada', 'git.stage': 'Caminho preparado', 'git.unstage': 'Caminho retirado do índice',
-  'approval.completed': 'Commit registrado',
-  'approval.failed': 'Falha ao tentar o commit',
+  'approval.completed': 'Operação aprovada concluída',
+  'approval.failed': 'Falha na operação aprovada',
   'approval.interrupted': 'Execução interrompida',
+  'notification.read': 'Leitura registrada',
   'preview.save': 'Preview salvo',
   'check.passed': 'Verificação aprovada', 'check.failed': 'Verificação falhou',
   'check.cancelled': 'Verificação cancelada', 'check.timed_out': 'Verificação excedeu o tempo limite',
@@ -38,10 +39,11 @@ const actionLabels = {
   'task.check.failed': 'Verificação da tarefa falhou', 'task.check.cancelled': 'Verificação da tarefa cancelada',
   'task.check.timed_out': 'Verificação excedeu o tempo limite', 'task.check.interrupted': 'Verificação da tarefa interrompida',
 };
-let state = { projects: [], objectives: [], tasks: [], audit: [], approvals: [], previews: [] };
+let state = { projects: [], objectives: [], tasks: [], audit: [], approvals: [], previews: [], notifications: [] };
 let revision;
 let loading = false;
 let approvalsSignature;
+let notificationsSignature;
 let previewReloadTimer;
 const reviewStates = new Map();
 let graphRequest = 0;
@@ -227,6 +229,7 @@ function render() {
   renderApprovals();
   renderPreviewPanel();
   renderGraphPanel();
+  renderNotifications();
   prepareGit('quality-list', [['check', 'Verificar alterações']]);
   fill('coordinator-detail', state.objectives, objective => {
     const tasks = state.tasks.filter(task => task.objectiveId === objective.id);
@@ -443,6 +446,7 @@ function renderApprovals() {
     const project = state.projects.find(entry => entry.id === approval.projectId);
     const status = { pending: 'Pendente', rejected: 'Rejeitada', executing: 'Em execução', completed: 'Concluída', failed: 'Falhou', expired: 'Expirada' }[approval.state] || approval.state;
     const item = element('article', undefined, 'approval-card');
+    item.id = 'approval-' + approval.id;
     const heading = element('div', undefined, 'approval-card-heading');
     const isPush = approval.kind === 'git.push';
     heading.append(element('strong', isPush ? 'Push para ' + (approval.remote || 'remote') : (approval.message || 'Commit sem mensagem')), element('span', status, 'approval-status approval-' + approval.state));
@@ -490,6 +494,36 @@ function savedPreviewUrl() {
 
 function renderPreviewPanel() {
   options(byId('preview-project'), state.projects, project => project.name, 'Selecione um projeto');
+}
+
+function renderNotifications() {
+  const notifications = state.notifications;
+  const unread = notifications.filter(notification => !notification.read).length;
+  const count = unread + (unread === 1 ? ' não lida' : ' não lidas');
+  setText('notifications-count', count);
+  const nav = document.querySelector('[data-section="notifications"]');
+  nav.dataset.unread = unread;
+  nav.setAttribute('aria-label', 'Notificações, ' + count);
+  document.querySelector('[data-notification-read-all]').disabled = !unread;
+  fill('notifications-list', notifications, notification => {
+    const item = element('article', undefined, 'notification-row ' + (notification.read ? 'is-read' : 'is-unread'));
+    item.append(element('strong', actionLabels[notification.action] || 'Notificação local'));
+    if (notification.at) item.append(element('small', new Date(notification.at).toLocaleString('pt-BR')));
+    const task = notification.action.startsWith('task.') && state.tasks.find(entry => entry.id === notification.result);
+    const approval = notification.action.startsWith('approval.') && state.approvals.some(entry => entry.id === notification.result);
+    const link = element('a', task ? 'Abrir tarefa' : approval ? 'Abrir aprovação' : 'Abrir Qualidade');
+    if (task) link.href = '#task-' + task.id;
+    else if (approval) link.href = '#approval-' + notification.result;
+    else if (notification.action.startsWith('check.')) link.href = '#qualidade';
+    if (link.hasAttribute('href')) item.append(link);
+    if (!notification.read) {
+      const button = element('button', 'Marcar como lida', 'button button-quiet');
+      button.type = 'button';
+      button.dataset.notificationRead = notification.id;
+      item.append(button);
+    }
+    return item;
+  }, 'Nenhuma notificação local.');
 }
 
 function applyPreviewSize() {
@@ -846,12 +880,16 @@ async function submitCheck(action, data) {
 
 function update(snapshot) {
   if (snapshot.audit.length < state.audit.length) return;
-  state = { ...state, ...snapshot };
+  const readNotifications = new Set((state.notifications || []).filter(item => item.read).map(item => item.id));
+  const notifications = Array.isArray(snapshot.notifications) ? snapshot.notifications.map(item => readNotifications.has(item.id) ? { ...item, read: true } : item) : state.notifications;
+  state = { ...state, ...snapshot, notifications };
   const nextApprovals = JSON.stringify(state.approvals || []);
   if (approvalsSignature !== nextApprovals) {
     approvalsSignature = nextApprovals;
     renderApprovals();
   }
+  const nextNotifications = JSON.stringify(state.notifications || []);
+  if (notificationsSignature !== nextNotifications) { notificationsSignature = nextNotifications; renderNotifications(); }
   const next = state.audit.at(-1)?.id ?? '';
   if (revision !== next) {
     revision = next;
@@ -980,6 +1018,13 @@ document.addEventListener('click', event => {
 });
 
 document.addEventListener('click', async event => {
+  const notificationButton = event.target.closest('[data-notification-read], [data-notification-read-all]');
+  if (notificationButton) {
+    notificationButton.disabled = true;
+    await mutate('notification.read', notificationButton.dataset.notificationRead ? { id: notificationButton.dataset.notificationRead } : { all: true });
+    notificationButton.disabled = notificationButton.hasAttribute('data-notification-read-all') && state.notifications.every(item => item.read);
+    return;
+  }
   const cancelExecutor = event.target.closest('[data-executor-cancel]');
   if (cancelExecutor) {
     if (!window.confirm('Cancelar a execução Codex desta tarefa?')) return;

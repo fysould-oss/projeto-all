@@ -730,6 +730,14 @@ td:first-child {
 .task-executor-info { color:var(--muted); font-size:.72rem; }
 .task-review-output { max-height:20rem; overflow:auto; white-space:pre-wrap; overflow-wrap:anywhere; font:.72rem var(--mono); }
 .task-review-files, .task-review-error { color:var(--muted); font-size:.72rem; overflow-wrap:anywhere; }
+.notification-toolbar { padding:.65rem 1rem 0; }
+.notification-row { display:flex; flex-wrap:wrap; align-items:center; gap:.45rem; padding:.65rem 0; border-bottom:1px solid var(--line-soft); }
+.notification-row strong { flex-basis:100%; }
+.notification-row a { color:var(--cyan); font-size:.76rem; }
+.approval-card[id] { scroll-margin-top:6rem; }
+.notification-row small { color:var(--faint); font-size:.68rem; }
+.notification-row.is-unread { border-left:3px solid var(--cyan); padding-left:.55rem; }
+.nav-item[data-unread]:not([data-unread="0"])::after { content:attr(data-unread); margin-left:auto; color:var(--cyan); font-size:.65rem; }
 .executor-policy-form { display:flex; flex-wrap:wrap; align-items:center; gap:.4rem; margin-top:.5rem; }
 .executor-policy-form input[type=number] { width:4.5rem; background:var(--bg-deep); color:var(--text); border:1px solid var(--line); border-radius:.35rem; padding:.3rem; }
 .check-output { max-height: 20rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }

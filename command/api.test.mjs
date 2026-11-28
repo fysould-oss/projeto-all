@@ -157,6 +157,22 @@ test('previews and registers a dependent plan and executes a project script over
   assert.equal(restored.status, 'passed');
   assert.equal(restored.durationMs, completed.durationMs);
   assert.equal(Object.hasOwn(restored, 'output'), false);
+
+  const before = await body(await fetch(origin));
+  const [notice] = before.notifications;
+  assert.equal(notice.action, 'check.passed');
+  assert.equal(notice.result, run.id);
+  assert.equal(notice.read, false);
+  assert.doesNotMatch(JSON.stringify(notice), /fixture completed|Workflow/);
+  assert.equal((await post('notification.read', { id: 'missing' })).status, 400);
+  const marked = await body(await post('notification.read', { id: notice.id }));
+  assert.equal(marked.notifications[0].read, true);
+  assert.equal(marked.audit.length, before.audit.length);
+  await handler.close();
+  handler = openHandler();
+  assert.equal((await body(await fetch(origin))).notifications[0].read, true);
+  const all = await body(await post('notification.read', { all: true }));
+  assert.ok(all.notifications.every(item => item.read));
 });
 
 test('requires a current approval and commits exactly the reviewed Git index', async t => {

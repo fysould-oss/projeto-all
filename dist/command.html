@@ -32,6 +32,7 @@
           <a class="nav-item" href="#git" data-section="git"><span class="nav-icon">⑂</span>Git</a>
           <a class="nav-item" href="#previews" data-section="previews"><span class="nav-icon" aria-hidden="true">▣</span>Previews</a>
           <a class="nav-item" href="#qualidade" data-section="qualidade"><span class="nav-icon">◇</span>Qualidade</a>
+          <a class="nav-item" href="#notifications" data-section="notifications"><span class="nav-icon" aria-hidden="true">◉</span>Notificações</a>
           <a class="nav-item" href="#historico" data-section="historico"><span class="nav-icon">◷</span>Histórico</a>
         </nav>
         <div class="sidebar-bottom">
@@ -118,6 +119,11 @@
               <p id="checks-status" role="status">Selecione um projeto para localizar os scripts.</p>
               <div id="checks-runs"></div>
             </div>
+          </section>
+          <section class="panel notifications-panel" id="notifications" aria-labelledby="notifications-title">
+            <header class="panel-header"><h2 id="notifications-title">Notificações</h2><span id="notifications-count" class="panel-meta" role="status"></span></header>
+            <div class="notification-toolbar"><button class="button button-quiet" type="button" data-notification-read-all disabled>Marcar todas como lidas</button></div>
+            <div id="notifications-list" class="stack-list"><p class="empty-state">Nenhuma notificação local.</p></div>
           </section>
           <section class="panel" id="historico" data-panel="historico" aria-labelledby="history-title"><header class="panel-header"><div><p class="eyebrow">AUDITORIA</p><h2 id="history-title">Histórico</h2></div></header><div id="history-list" class="timeline"><p class="empty-state">Nenhum evento registrado.</p></div></section>
         </div>
