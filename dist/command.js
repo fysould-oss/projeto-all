@@ -42,6 +42,8 @@ const actionLabels = {
 let state = { projects: [], objectives: [], tasks: [], audit: [], approvals: [], previews: [], notifications: [] };
 let revision;
 let loading = false;
+let connection = 'connecting';
+let lastSuccessfulSync = null;
 let approvalsSignature;
 let notificationsSignature;
 let auditRequest = 0;
@@ -1285,15 +1287,37 @@ function update(snapshot) {
 async function refresh() {
   if (loading || document.hidden) return;
   loading = true;
+  if (connection === 'offline' || connection === 'unavailable') showConnection('reconnecting');
   try {
     update(await request());
-    setText('connection-state', 'Servidor local conectado');
-    setText('last-sync', new Date().toLocaleTimeString('pt-BR'));
+    lastSuccessfulSync = new Date();
+    showConnection('connected');
   } catch {
-    setText('connection-state', 'Servidor local indisponível');
+    showConnection(navigator.onLine ? 'unavailable' : 'offline');
   } finally {
     loading = false;
   }
+}
+
+function showConnection(status) {
+  connection = status;
+  document.documentElement.dataset.connection = status;
+  const text = {
+    connected: ['Servidor local conectado', '● serviço local'],
+    reconnecting: ['Tentando reconectar ao servidor local…', '● reconectando'],
+    unavailable: ['Servidor local indisponível', '● sem conexão com o servidor'],
+    offline: ['Navegador offline', '● offline'],
+  };
+  const [label, badge] = text[status];
+  setText('connection-state', label);
+  setText('server-badge', badge);
+  const time = lastSuccessfulSync?.toLocaleTimeString('pt-BR');
+  setText('last-sync', time ? 'Última sincronização: ' + time : 'Sem sincronização');
+  const notice = byId('connection-notice');
+  notice.hidden = status === 'connected';
+  setText('connection-notice', status === 'connected' ? '' : time
+    ? 'Dados da última sincronização, às ' + time + '. Use Atualizar para tentar novamente.'
+    : 'Nenhum dado sincronizado. Use Atualizar para tentar novamente.');
 }
 
 async function mutate(action, data) {
@@ -2134,6 +2158,7 @@ await refresh();
 setInterval(refresh, 5000);
 document.addEventListener('visibilitychange', refresh);
 window.addEventListener('online', refresh);
+window.addEventListener('offline', refresh);
 window.addEventListener('pagehide', () => {
   clearInterval(previewReloadTimer);
   clearInterval(coordinatorJobsTimer);

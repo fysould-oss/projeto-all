@@ -41,6 +41,9 @@ button,input,select {
 .app-shell {
   min-height:100vh;
 }
+.connection-notice { padding: .65rem .85rem; border: 1px solid var(--amber); border-radius: var(--radius); color: var(--text); }
+[data-connection="offline"] .status-dot, [data-connection="unavailable"] .status-dot,
+[data-connection="reconnecting"] .status-dot { background: var(--amber); }
 #global-search { width:min(34rem, calc(100% - 1.5rem)); max-height:85dvh; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); }
 #global-search::backdrop { background:#080e19bd; }
 #global-search label { display:grid; gap:.35rem; }

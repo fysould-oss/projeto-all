@@ -15,6 +15,7 @@
 - [x] Filtrar o histórico de verificações por estado, mantendo o filtro durante as atualizações.
 - [x] Vincular resultados de verificações às tarefas de origem no histórico, inclusive após reexecução.
 - [x] Resumir verificações recentes por projeto e disponibilizar um widget de falhas na visão geral.
+- [x] Indicar perda de conexão, tentativa de reconexão e data dos dados exibidos.
 - [ ] Preservar escritório, catálogo, APK e publicação existentes.
 - [ ] Verificar persistência, dependências, restrições de origem e responsividade.
 
