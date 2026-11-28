@@ -9,6 +9,7 @@
 
 - [x] Persistir cadastro de projetos, objetivos, tarefas, dependências e eventos de auditoria no computador.
 - [x] Conectar dashboard, lista de tarefas, Git de leitura e observabilidade ao servidor local.
+- [x] Exibir CPU e RAM do host, memória residente do servidor e quantidade de verificações ativas.
 - [ ] Preservar escritório, catálogo, APK e publicação existentes.
 - [ ] Verificar persistência, dependências, restrições de origem e responsividade.
 

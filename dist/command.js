@@ -836,11 +836,30 @@ function renderMetrics() {
     setText('activity-chart', observed.sessions + ' sessões em ' + observed.projects + ' projetos observados.');
   }
   if (!resources) return;
+  renderObservability(resources);
   const gib = bytes => (bytes / 2 ** 30).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' GiB';
   const used = Math.round(100 * (1 - resources.free / resources.total));
   setText('resource-percent', used + '% RAM');
   byId('resource-meter').style.width = used + '%';
   setText('resource-summary', gib(resources.total - resources.free) + ' em uso · ' + resources.cores + ' núcleos lógicos');
+}
+
+function renderObservability(resources) {
+  let panel = byId('observabilidade');
+  if (!panel) {
+    panel = element('section', undefined, 'panel observability-panel'); panel.id = 'observabilidade'; panel.dataset.panel = 'observabilidade';
+    panel.innerHTML = '<header class="panel-header"><div><p class="eyebrow">TELEMETRIA</p><h2>Observabilidade</h2></div><span class="panel-meta">snapshot local</span></header><div class="observability-grid"><div class="observation-metric"><div><span>CPU</span><strong id="obs-cpu-label">Indisponível</strong></div><div class="observation-bar" role="progressbar" aria-label="Uso de CPU"><i id="obs-cpu-bar"></i></div></div><div class="observation-metric"><div><span>Memória</span><strong id="obs-memory-label">Indisponível</strong></div><div class="observation-bar" role="progressbar" aria-label="Uso de memória"><i id="obs-memory-bar"></i></div></div><dl class="observation-details"><div><dt>Checks ativos</dt><dd id="obs-checks">Indisponível</dd></div><div><dt>Núcleos</dt><dd id="obs-cores">Indisponível</dd></div><div><dt>RSS do servidor</dt><dd id="obs-rss">Indisponível</dd></div><div><dt>Uptime</dt><dd id="obs-uptime">Indisponível</dd></div></dl></div>';
+    byId('visao')?.after(panel);
+    const nav = document.querySelector('.main-nav');
+    if (nav && !nav.querySelector('[data-section="observabilidade"]')) { const link = element('a', 'Observabilidade', 'nav-item'); link.href = '#observabilidade'; link.dataset.section = 'observabilidade'; nav.append(link); }
+  }
+  const formatBytes = bytes => Number.isFinite(bytes) ? (bytes / 2 ** 30).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' GiB' : 'Indisponível';
+  const formatUptime = seconds => Number.isFinite(seconds) ? Math.floor(seconds / 3600) + 'h ' + Math.floor(seconds / 60) % 60 + 'min' : 'Indisponível';
+  const cpu = Number.isFinite(resources.cpuPercent) ? Math.max(0, Math.min(100, resources.cpuPercent)) : null;
+  const used = Number.isFinite(resources.total) && resources.total > 0 && Number.isFinite(resources.free) ? Math.max(0, Math.min(100, 100 * (1 - resources.free / resources.total))) : null;
+  setText('obs-cpu-label', cpu == null ? 'Indisponível' : cpu.toFixed(1) + '%'); setText('obs-memory-label', used == null ? 'Indisponível' : used.toFixed(1) + '%');
+  setText('obs-checks', Number.isFinite(resources.activeChecks) ? String(resources.activeChecks) : 'Indisponível'); setText('obs-cores', Number.isFinite(resources.cores) ? String(resources.cores) : 'Indisponível'); setText('obs-rss', formatBytes(resources.serverRss)); setText('obs-uptime', formatUptime(resources.uptime));
+  for (const [id, value] of [['obs-cpu-bar', cpu], ['obs-memory-bar', used]]) { const bar = byId(id); bar.style.width = (value == null ? 0 : value) + '%'; bar.parentElement.setAttribute('aria-valuenow', value == null ? '0' : String(value)); bar.parentElement.setAttribute('aria-valuetext', value == null ? 'Indisponível' : value.toFixed(1) + '%'); }
 }
 
 async function request(query = '', init) {

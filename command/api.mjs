@@ -312,7 +312,7 @@ export function createCommandApi(file, getActivity, {
         projects: activity.projects.length,
         sessions: activity.projects.reduce((count, project) => count + project.agents.length, 0),
       },
-      resources: resources(),
+      resources: resources(checks.activeCount()),
     });
   };
   handle.start = () => {

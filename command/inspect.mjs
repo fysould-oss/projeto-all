@@ -1,11 +1,14 @@
 import { execFile } from 'node:child_process';
 import { cpus, freemem, totalmem, uptime } from 'node:os';
 import { promisify } from 'node:util';
+import { createCpuMeter } from './telemetry.mjs';
 
 const execute = promisify(execFile);
+const cpuPercent = createCpuMeter();
 
-export function resources() {
-  return { cores: cpus().length, free: freemem(), total: totalmem(), uptime: uptime(), serverRss: process.memoryUsage().rss };
+export function resources(activeChecks) {
+  return { cpuPercent: cpuPercent(), cores: cpus().length, free: freemem(), total: totalmem(),
+    uptime: uptime(), serverRss: process.memoryUsage.rss(), activeChecks };
 }
 
 export async function inspectProject(project, kind, prepared) {

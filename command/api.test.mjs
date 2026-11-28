@@ -64,6 +64,9 @@ test('persists workflow, gates dependent tasks and inspects a real Git worktree'
   assert.equal(reopened.tasks.find(entry => entry.id === second.id).state, 'cancelled');
   assert.equal(reopened.observed.sessions, 0);
   assert.ok(reopened.resources.total > 0);
+  assert.equal(reopened.resources.activeChecks, 0);
+  assert.ok(reopened.resources.cpuPercent === null
+    || (reopened.resources.cpuPercent >= 0 && reopened.resources.cpuPercent <= 100));
   const diff = await (await fetch(origin + '/?view=diff&project=' + project.id)).json();
   assert.match(diff.output, /^\+changed$/m);
   const cleanCheck = await (await fetch(origin + '/?view=check&project=' + project.id)).json();

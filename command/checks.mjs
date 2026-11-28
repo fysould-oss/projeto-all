@@ -63,8 +63,11 @@ export function createChecks(options = {}) {
   function list(project) {
     return [...runs.values()].filter(run => run.project === projectKey(project)).reverse().map(publicRun);
   }
+  function activeCount() {
+    return [...runs.values()].filter(run => run.child).length;
+  }
   function availableSlots() {
-    return closed ? 0 : MAX_ACTIVE - [...runs.values()].filter(run => run.child).length;
+    return closed ? 0 : MAX_ACTIVE - activeCount();
   }
 
   async function start(project, script) {
@@ -141,5 +144,5 @@ export function createChecks(options = {}) {
     }
     await Promise.all(active.map(run => run.done));
   }
-  return { available, availableSlots, list, start, cancel, wait, close };
+  return { available, activeCount, availableSlots, list, start, cancel, wait, close };
 }
