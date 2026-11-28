@@ -66,7 +66,7 @@ export function objectiveGraph(snapshot, objectiveId) {
     const layer = layers.get(task.id) ?? null;
     const waitingOn = task.dependencies.filter(id => allTasks.get(id)?.state !== 'done');
     return {
-      id: task.id, title: task.title, state: task.state, role: task.role,
+      id: task.id, title: task.title, state: task.state, role: task.role, check: task.check,
       dependencies: task.dependencies, external: task.objectiveId !== objectiveId,
       waitingOn, layer, ready: task.state === 'pending' && layer !== null && !waitingOn.length,
     };

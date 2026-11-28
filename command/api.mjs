@@ -25,6 +25,7 @@ async function readAction(request) {
 
 export function createCommandApi(file, getActivity) {
   const checks = createChecks();
+  const taskChecks = new Set();
   let store;
   const open = () => store ??= createStore(file).catch(error => {
     store = undefined;
@@ -59,6 +60,16 @@ export function createCommandApi(file, getActivity) {
       }
       try {
         const { action, data } = await readAction(request);
+        if (action === 'task.check') {
+          const { project, run } = await database.beginTaskCheck(data, checks);
+          const completion = checks.wait(project, run.id)
+            .then(result => database.finishTaskCheck(data.id, result))
+            .catch(() => console.error('Não foi possível registrar o resultado da tarefa.'))
+            .finally(() => taskChecks.delete(completion));
+          taskChecks.add(completion);
+          send(response, headers, 200, database.snapshot());
+          return;
+        }
         if (['check.start', 'check.cancel'].includes(action)) {
           const project = database.snapshot().projects.find(entry => entry.id === data?.projectId);
           if (!project) {
@@ -167,6 +178,9 @@ export function createCommandApi(file, getActivity) {
       resources: resources(),
     });
   };
-  handle.close = () => checks.close();
+  handle.close = async () => {
+    await checks.close();
+    await Promise.all(taskChecks);
+  };
   return handle;
 }

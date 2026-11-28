@@ -118,6 +118,13 @@ export function createChecks(options = {}) {
     return publicRun(run);
   }
 
+  async function wait(project, id) {
+    const run = runs.get(id);
+    if (!run || run.project !== projectKey(project)) return null;
+    await run.done;
+    return publicRun(run);
+  }
+
   async function close() {
     closed = true;
     const active = [...runs.values()].filter(run => run.child);
@@ -129,5 +136,5 @@ export function createChecks(options = {}) {
     }
     await Promise.all(active.map(run => run.done));
   }
-  return { available, list, start, cancel, close };
+  return { available, list, start, cancel, wait, close };
 }

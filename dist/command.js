@@ -9,6 +9,7 @@ const planRoles = {
   delivery: 'Entrega', coordination: 'Coordenação',
 };
 const modelTiers = { economy: 'econômico', balanced: 'equilibrado', advanced: 'avançado' };
+const checkLabels = { running: 'Em execução', passed: 'Aprovada', failed: 'Falhou', cancelled: 'Cancelada', timed_out: 'Tempo limite', interrupted: 'Interrompida' };
 const actionLabels = {
   'project.create': 'Projeto cadastrado', 'objective.create': 'Objetivo criado',
   'task.create': 'Tarefa criada', 'task.state': 'Estado da tarefa atualizado',
@@ -19,6 +20,9 @@ const actionLabels = {
   'approval.failed': 'Falha ao tentar o commit',
   'approval.interrupted': 'Execução interrompida',
   'preview.save': 'Preview salvo',
+  'task.check': 'Verificação da tarefa iniciada', 'task.check.passed': 'Verificação da tarefa aprovada',
+  'task.check.failed': 'Verificação da tarefa falhou', 'task.check.cancelled': 'Verificação da tarefa cancelada',
+  'task.check.timed_out': 'Verificação excedeu o tempo limite', 'task.check.interrupted': 'Verificação da tarefa interrompida',
 };
 let state = { projects: [], objectives: [], tasks: [], audit: [], approvals: [], previews: [] };
 let revision;
@@ -135,7 +139,17 @@ function renderTasks() {
     select.dataset.task = task.id;
     for (const [value, title] of Object.entries(labels)) select.add(new Option(title, value));
     select.value = task.state;
+    const check = task.check;
+    select.disabled = check?.status === 'running';
     item.append(select);
+    if (check) item.append(checkInfo(check));
+    if (!['pending', 'failed'].includes(task.state) || task.dependencies.some(id => state.tasks.find(item => item.id === id)?.state !== 'done')) return item;
+    const checkControls = element('div', undefined, 'task-check-controls');
+    const script = element('select'); script.dataset.taskCheckScript = task.id; script.setAttribute('aria-label', 'Verificação de ' + task.title);
+    script.append(new Option('Verificar…', ''), ...['lint', 'test', 'build', 'typecheck'].map(name => new Option(name, name)));
+    const run = element('button', 'Executar verificação', 'button button-quiet'); run.type = 'button'; run.dataset.taskCheck = task.id; run.disabled = true;
+    script.addEventListener('change', () => { run.disabled = !script.value; });
+    checkControls.append(script, run); item.append(checkControls);
     return item;
   }
   const list = byId('tasks-list');
@@ -413,6 +427,13 @@ function renderGraph({ nodes, edges, counts, truncated }) {
   showGraphNode(selectedGraphNode);
 }
 
+function checkInfo(check) {
+  return element('p', [
+    'Verificação: ' + check.script, checkLabels[check.status],
+    check.durationMs != null && (check.durationMs / 1000).toFixed(1) + ' s',
+  ].filter(Boolean).join(' · '), 'task-check-info');
+}
+
 function showGraphNode(id) {
   const node = graphNodes.get(id);
   selectedGraphNode = node?.id;
@@ -425,6 +446,8 @@ function showGraphNode(id) {
   detail.append(element('strong', node.title), element('p', [
     graphStatus(node), planRoles[node.role], node.external && 'Outro objetivo',
   ].filter(Boolean).join(' · ')));
+  const check = node.check || state.tasks.find(task => task.id === node.id)?.check;
+  if (check) detail.append(checkInfo(check));
   if (node.dependencies.length) {
     const list = element('ul');
     for (const dependency of node.dependencies) {
@@ -728,6 +751,16 @@ document.addEventListener('change', async event => {
 document.addEventListener('click', event => {
   const graphNode = event.target.closest('[data-graph-node]');
   if (graphNode) showGraphNode(graphNode.dataset.graphNode);
+});
+
+document.addEventListener('click', async event => {
+  const button = event.target.closest('[data-task-check]');
+  if (!button) return;
+  const script = button.closest('.task-check-controls')?.querySelector('[data-task-check-script]')?.value;
+  if (!script) return;
+  button.disabled = true;
+  await mutate('task.check', { id: button.dataset.taskCheck, script });
+  button.disabled = false;
 });
 
 document.addEventListener('click', async event => {

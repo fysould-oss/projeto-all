@@ -24,6 +24,8 @@ Para publicar uma branch, selecione um remoto já configurado e solicite **Push*
 
 Em Qualidade, selecione um projeto confiável com `package.json` para executar scripts declarados de lint, teste, build ou verificação de tipos. Os scripts usam as dependências e a configuração desse projeto. A seção mostra o estado, a duração e a saída limitada e permite interromper a execução. O histórico de execuções fica na memória do servidor local durante esta etapa.
 
+Também é possível executar um desses scripts a partir de uma tarefa pendente ou com falha, desde que suas dependências estejam concluídas. Uma execução aprovada conclui a tarefa e libera suas dependentes. Falhas e cancelamentos atualizam o estado da tarefa. O nome do script, seu resultado e sua duração ficam registrados na tarefa e aparecem no grafo. Para acessar a saída ou interromper uma execução em andamento, use a seção Qualidade.
+
 Em Previews, selecione um projeto e salve o endereço de uma aplicação já em execução no mesmo computador do navegador. Use HTTP com `localhost` ou `127.0.0.1` e uma porta entre 1024 e 65535. A central guarda um endereço por projeto e só abre a aplicação quando você inicia o preview. Os controles ajustam as dimensões do quadro para desktop, tablet, celular ou tamanho personalizado. É possível girar, recarregar, programar recarga enquanto a aba está visível e parar. A abertura em nova aba atende aplicações que bloqueiam incorporação por CSP ou X-Frame-Options.
 
 ## Arquitetura

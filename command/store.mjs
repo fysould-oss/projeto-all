@@ -94,7 +94,14 @@ export async function createStore(path) {
     approval.error = 'Execução interrompida. Confira o histórico Git e a branch de destino antes de repetir.';
     audit(state, 'approval.interrupted', {}, approval.id);
   }
-  if (interrupted.length) await persist(state);
+  const interruptedChecks = state.tasks.filter(task => task.check?.status === 'running');
+  for (const task of interruptedChecks) {
+    task.state = 'failed';
+    task.updatedAt = now();
+    task.check.status = 'interrupted';
+    audit(state, 'task.check.interrupted', {}, task.id);
+  }
+  if (interrupted.length || interruptedChecks.length) await persist(state);
 
   async function save(next, action, data, result) {
     audit(next, action, data, result.id);
@@ -159,6 +166,47 @@ export async function createStore(path) {
   }
 
   let queue = Promise.resolve();
+  function serialize(operation) {
+    const result = queue.then(operation);
+    queue = result.catch(() => {});
+    return result;
+  }
+
+  async function beginTaskCheck(data, checks) {
+    const next = clone(state);
+    const task = next.tasks.find(item => item.id === data?.id);
+    if (!task) throw new Error('Tarefa não encontrada.');
+    if (!['pending', 'failed'].includes(task.state)) throw new Error('A tarefa precisa estar pendente ou com falha.');
+    if (task.dependencies.some(id => next.tasks.find(item => item.id === id)?.state !== 'done')) {
+      throw new Error('Conclua as dependências antes de iniciar esta tarefa.');
+    }
+    const objective = next.objectives.find(item => item.id === task.objectiveId);
+    const project = next.projects.find(item => item.id === objective?.projectId);
+    if (!project) throw new Error('Projeto não encontrado.');
+    const run = await checks.start(project, data.script);
+    task.state = 'running';
+    task.updatedAt = now();
+    task.check = { id: run.id, script: run.script, status: run.status, durationMs: run.durationMs };
+    try {
+      await save(next, 'task.check', data, task);
+    } catch (error) {
+      await checks.cancel(project, run.id);
+      throw error;
+    }
+    return { project, run };
+  }
+
+  async function finishTaskCheck(taskId, run) {
+    if (!run) return;
+    const next = clone(state);
+    const task = next.tasks.find(item => item.id === taskId);
+    if (task?.check?.id !== run.id || task.check.status !== 'running') return;
+    task.check.status = run.status;
+    task.check.durationMs = run.durationMs;
+    task.state = run.status === 'passed' ? 'done' : run.status === 'cancelled' ? 'cancelled' : 'failed';
+    task.updatedAt = now();
+    await save(next, 'task.check.' + run.status, {}, task);
+  }
 
   async function mutate(action, data = {}) {
     if (!ACTIONS.has(action) && !APPROVAL_ACTIONS.has(action) && !INDEX_ACTIONS.has(action)) throw new TypeError('Ação desconhecida.');
@@ -218,6 +266,7 @@ export async function createStore(path) {
       const taskId = id(data.id);
       const task = next.tasks.find(item => item.id === taskId);
       if (!task) throw new Error('Tarefa não encontrada.');
+      if (task.check?.status === 'running') throw new Error('Interrompa a execução na seção Qualidade antes de alterar o estado.');
       if (!STATES.has(data.state)) throw new TypeError('Estado de tarefa inválido.');
       if (data.state === 'running') {
         if (task.dependencies.some(dependency => next.tasks.find(item => item.id === dependency)?.state !== 'done')) {
@@ -245,9 +294,9 @@ export async function createStore(path) {
       return project && clone({ project, prepared: approval.prepared });
     },
     mutate(action, data) {
-      const result = queue.then(() => mutate(action, data));
-      queue = result.catch(() => {});
-      return result;
+      return serialize(() => mutate(action, data));
     },
+    beginTaskCheck(data, checks) { return serialize(() => beginTaskCheck(data, checks)); },
+    finishTaskCheck(taskId, run) { return serialize(() => finishTaskCheck(taskId, run)); },
   };
 }
