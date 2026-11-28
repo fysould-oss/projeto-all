@@ -11,6 +11,7 @@
   --faint:#7689a2;
   --lime:#a9e698;
   --cyan:#9bd9ef;
+  --accent:var(--accent-dark, var(--cyan));
   --amber:#f6cf70;
   --red:#ff9d96;
   --purple:#d4a3ff;
@@ -51,9 +52,9 @@ button,input,select {
 .search-heading { display:flex; justify-content:space-between; align-items:center; gap:.5rem; }
 .search-heading h2 { font-size:1rem; }
 #global-search-results { list-style:none; margin:0; padding:0; }
-#global-search-results :is(a, button) { display:block; width:100%; color:var(--cyan); padding:.5rem; overflow-wrap:anywhere; text-align:left; }
+#global-search-results :is(a, button) { display:block; width:100%; color:var(--accent); padding:.5rem; overflow-wrap:anywhere; text-align:left; }
 #global-search-results button { border:0; background:transparent; cursor:pointer; }
-#global-search-results :is(a, button):focus-visible { outline:2px solid var(--cyan); outline-offset:-2px; }
+#global-search-results :is(a, button):focus-visible { outline:2px solid var(--accent); outline-offset:-2px; }
 #global-search-hint { font-size:.8rem; color:var(--muted); }
 #global-search-open kbd { font-size:.7rem; }
 @media(max-width:640px) { #global-search-open kbd { display:none; } }
@@ -763,7 +764,7 @@ td:first-child {
 .graph-node[data-state="failed"] { border-color:var(--red); }
 .graph-node[data-state="done"], .graph-node[data-ready="true"] { border-color:var(--lime); }
 .graph-node[aria-pressed="true"], .graph-canvas:focus-visible { outline:2px solid var(--cyan); outline-offset:2px; }
-.graph-details a { color:var(--cyan); }
+.graph-details a { color:var(--accent); }
 .task-check-controls { display:flex; flex-wrap:wrap; gap:.4rem; align-items:center; margin-top:.35rem; }
 .task-check-controls select { background:var(--bg-deep); color:var(--text); border:1px solid var(--line); border-radius:.35rem; padding:.35rem; }
 .task-check-info { color:var(--muted); font-size:.72rem; }
@@ -776,7 +777,7 @@ td:first-child {
 .notification-toolbar { padding:.65rem 1rem 0; }
 .notification-row { display:flex; flex-wrap:wrap; align-items:center; gap:.45rem; padding:.65rem 0; border-bottom:1px solid var(--line-soft); }
 .notification-row strong { flex-basis:100%; }
-.notification-row a { color:var(--cyan); font-size:.76rem; }
+.notification-row a { color:var(--accent); font-size:.76rem; }
 .approval-card[id] { scroll-margin-top:6rem; }
 .notification-row small { color:var(--faint); font-size:.68rem; }
 .notification-row.is-unread { border-left:3px solid var(--cyan); padding-left:.55rem; }
@@ -786,7 +787,7 @@ td:first-child {
 [id^="project-"], [id^="objective-"] { scroll-margin-top:6rem; }
 .audit-controls input, .audit-controls select { background:var(--bg-deep); color:var(--text); border:1px solid var(--line); border-radius:.35rem; padding:.45rem; }
 .audit-pagination { display:flex; align-items:center; gap:.5rem; padding:0 1rem 1rem; color:var(--muted); font-size:.72rem; }
-.audit-context a { color:var(--cyan); }
+.audit-context a { color:var(--accent); }
 .observability-panel { grid-column:1 / -1; }
 .observability-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; padding:1rem; }
 .observation-metric { display:grid; gap:.45rem; }
@@ -804,7 +805,7 @@ td:first-child {
 .check-output { max-height: 20rem; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
 main select { background: var(--bg-deep); color: var(--text); border: 1px solid var(--line); border-radius: 0.35rem; min-height: 2rem; max-width: 100%; }
 pre[data-git-output] { overflow: auto; max-height: 24rem; white-space: pre-wrap; overflow-wrap: anywhere; font: 0.75rem var(--mono); }
-pre[data-git-output] a { color: var(--cyan); }
+pre[data-git-output] a { color: var(--accent); }
 .git-commit-choice { max-inline-size: 100%; text-align: start; white-space: normal; overflow-wrap: anywhere; margin-block: .15rem; }
 .committed-path-list { list-style: none; padding: 0; margin-block: .5rem; max-block-size: 14rem; overflow: auto; }
 .committed-path-list button { text-align: start; overflow-wrap: anywhere; max-inline-size: 100%; }
@@ -812,7 +813,7 @@ pre[data-git-output] a { color: var(--cyan); }
 .git-path-diff { flex: 1 0 100%; min-width: 0; }
 .git-path-diff summary { cursor: pointer; }
 .git-path-diff button { margin: .3rem .3rem 0 0; }
-a:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--cyan); outline-offset: 3px; }
+a:focus-visible, button:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 section[id] { scroll-margin-top: 6rem; }
 .executor-jobs-panel { min-height: 10rem; }
 .executor-jobs-status { color: var(--muted); margin: 0 0 0.75rem; }
@@ -832,8 +833,10 @@ section[id] { scroll-margin-top: 6rem; }
 .kanban { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(8rem, 1fr); gap: 0.5rem; overflow-x: auto; }
 .kanban-column { border: 1px solid var(--line); border-radius: var(--radius); padding: 0.5rem; }
 .kanban-column h3 { margin-top: 0; font-size: 0.75rem; color: var(--muted); }
-.record-row a { color: var(--cyan); }
-.record-row:target { outline: 1px solid var(--cyan); scroll-margin-top: 7rem; }
+.record-row a { color: var(--accent); }
+.record-row:target { outline: 1px solid var(--accent); scroll-margin-top: 7rem; }
+:root[data-accent="violet"] { --accent-dark:#dbc1ff; --accent-light:#5f2f91; }
+:root[data-accent="mint"] { --accent-dark:#a3eccf; --accent-light:#146550; }
 
 .display-settings { margin-top: 0.75rem; padding: 0.75rem 1rem; }
 .display-settings summary { cursor: pointer; font-size: 0.8rem; }
@@ -868,6 +871,7 @@ section[id] { scroll-margin-top: 6rem; }
   --faint: #435c74;
   --lime: #245b38;
   --cyan: #005b78;
+  --accent: var(--accent-light, var(--cyan));
   & body, & .sidebar, & .topbar { background: var(--bg); }
   & .brand-mark, & .nav-item.is-active, & .button, & .office-link, & .coordinator-status, & .resource-mini { background: var(--surface-2); }
   & .forms-grid input, & .forms-grid select, & main select { background: var(--bg-deep); }
@@ -886,6 +890,7 @@ section[id] { scroll-margin-top: 6rem; }
   --faint: #435c74;
   --lime: #245b38;
   --cyan: #005b78;
+  --accent: var(--accent-light, var(--cyan));
   & body, & .sidebar, & .topbar { background: var(--bg); }
   & .brand-mark, & .nav-item.is-active, & .button, & .office-link, & .coordinator-status, & .resource-mini { background: var(--surface-2); }
   & .forms-grid input, & .forms-grid select, & main select { background: var(--bg-deep); }
