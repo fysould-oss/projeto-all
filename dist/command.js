@@ -1088,6 +1088,20 @@ const checksStart = byId('checks-start');
 let checksSignature;
 let checksRequest = 0;
 let checksPending = false;
+const checksResultFilter = byId('checks-result-filter');
+
+function filterCheckRuns() {
+  const result = checksResultFilter.value;
+  const items = [...byId('checks-runs').querySelectorAll('[data-check-result]')];
+  let count = 0;
+  for (const item of items) {
+    item.hidden = Boolean(result && item.dataset.checkResult !== result);
+    if (!item.hidden) count += 1;
+  }
+  checksResultFilter.disabled = !items.length;
+  const message = count ? count + ' de ' + items.length + ' execuções' : items.length ? 'Nenhuma execução com este resultado.' : '';
+  setText('checks-result-count', message);
+}
 
 function checkLog(run, previous) {
   const panel = element('details');
@@ -1133,6 +1147,7 @@ async function refreshChecks() {
     checksScript.disabled = true;
     updateCheckControls();
     byId('checks-runs').replaceChildren();
+    filterCheckRuns();
     setText('checks-status', 'Selecione um projeto para localizar os scripts.');
     return;
   }
@@ -1153,8 +1168,9 @@ async function refreshChecks() {
       options(checksScript, available, script => script.id, 'Selecione um script');
       fill('checks-runs', runs, run => {
         const duration = run.durationMs == null ? '' : (run.durationMs / 1000).toFixed(1) + ' s';
-        const status = labels[run.status] || ({ passed: 'Aprovado', timed_out: 'Tempo limite' })[run.status] || run.status;
+        const status = checkLabels[run.status] || run.status;
         const item = row(run.script, [status, duration].filter(Boolean).join(' · '));
+        item.dataset.checkResult = run.status;
         if (run.output) {
           const previous = logs.get(run.id);
           const log = checkLog(run, previous);
@@ -1169,11 +1185,12 @@ async function refreshChecks() {
         }
         return item;
       }, 'Nenhuma execução neste projeto.');
+      filterCheckRuns();
       for (const panel of byId('checks-runs').querySelectorAll('[data-check-log]')) {
         const previous = logs.get(panel.dataset.checkLog);
         if (previous?.scroll) panel.querySelector('pre').scrollTop = previous.scroll;
       }
-      if (focus) {
+      if (focus && !focus.input.closest('[data-check-result]').hidden) {
         focus.input.focus({ preventScroll: true });
         focus.input.setSelectionRange(focus.start, focus.end);
       }
@@ -1845,10 +1862,12 @@ checksProject.addEventListener('change', () => {
   checksScript.disabled = true;
   updateCheckControls();
   byId('checks-runs').replaceChildren();
+  filterCheckRuns();
   setText('checks-status', 'Localizando scripts…');
   refreshChecks();
 });
 checksScript.addEventListener('change', updateCheckControls);
+checksResultFilter.addEventListener('change', filterCheckRuns);
 checksStart.addEventListener('click', () => submitCheck('check.start', { script: checksScript.value }));
 byId('checks-runs').addEventListener('click', event => {
   const button = event.target.closest('[data-cancel-check]');

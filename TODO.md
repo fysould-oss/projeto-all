@@ -12,6 +12,7 @@
 - [x] Exibir CPU e RAM do host, memória residente do servidor e quantidade de verificações ativas.
 - [x] Mostrar PID, projeto e tempo de execução das verificações ativas com interrupção por execução.
 - [x] Filtrar linhas da saída de verificações e preservar a busca enquanto chegam novas linhas.
+- [x] Filtrar o histórico de verificações por estado, mantendo o filtro durante as atualizações.
 - [ ] Preservar escritório, catálogo, APK e publicação existentes.
 - [ ] Verificar persistência, dependências, restrições de origem e responsividade.
 
