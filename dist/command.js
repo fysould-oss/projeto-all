@@ -44,6 +44,10 @@ let revision;
 let loading = false;
 let approvalsSignature;
 let notificationsSignature;
+let auditRequest = 0;
+let auditOffset = 0;
+let auditQuery = "";
+let auditKind = "all";
 let previewReloadTimer;
 const reviewStates = new Map();
 let graphRequest = 0;
@@ -170,6 +174,7 @@ function renderProjectPolicies(usage) {
     if (!row) {
       row = element('tr');
       row.dataset.projectRow = project.id;
+      row.id = 'project-' + project.id;
       const cell = element('td');
       const details = element('details');
       const form = element('form', undefined, 'executor-policy-form');
@@ -230,10 +235,12 @@ function render() {
   renderPreviewPanel();
   renderGraphPanel();
   renderNotifications();
+
   prepareGit('quality-list', [['check', 'Verificar alterações']]);
   fill('coordinator-detail', state.objectives, objective => {
     const tasks = state.tasks.filter(task => task.objectiveId === objective.id);
     const card = row(objective.title, [getProject(objective.projectId), tasks.filter(task => task.state === 'done').length + '/' + tasks.length + ' concluídas'].join(' · '));
+    card.id = 'objective-' + objective.id;
     const status = objective.status || 'active';
     card.append(element('p', status === 'active' ? 'Ativo' : status === 'paused' ? 'Pausado' : 'Cancelado', 'objective-status'));
     const controls = element('div', undefined, 'objective-controls');
@@ -259,9 +266,7 @@ function render() {
     return card;
   }, 'Crie um objetivo depois de cadastrar um projeto.');
   renderTasks(usage);
-  fill('history-list', state.audit.slice(-50).reverse(), entry =>
-    row(actionLabels[entry.action] || entry.action, new Date(entry.at).toLocaleString('pt-BR')),
-  'As ações realizadas nesta central aparecem aqui.');
+  void loadAudit();
   for (const select of document.querySelectorAll('select[name=projectId], select[data-project-select]')) {
     options(select, state.projects, project => project.name, 'Selecione um projeto');
   }
@@ -524,6 +529,55 @@ function renderNotifications() {
     }
     return item;
   }, 'Nenhuma notificação local.');
+}
+
+function auditTarget(entry) {
+  const category = entry.action.split('.')[0];
+  const id = entry.result;
+  if (category === 'task' && state.tasks.some(item => item.id === id)) return '#task-' + id;
+  if (category === 'approval' && state.approvals.some(item => item.id === id)) return '#approval-' + id;
+  if (category === 'objective' && state.objectives.some(item => item.id === id)) return '#objective-' + id;
+  if (['project', 'git'].includes(category) && state.projects.some(item => item.id === id)) return '#project-' + id;
+  if (category === 'check') return '#qualidade';
+  if (category === 'preview') return '#previews';
+  return '';
+}
+
+async function loadAudit() {
+  const sequence = ++auditRequest;
+  const query = new URLSearchParams({ view: 'audit', q: auditQuery, kind: auditKind, limit: '25', offset: String(auditOffset) });
+  try {
+    const { entries, total, offset, limit } = await request('?' + query);
+    if (sequence !== auditRequest) return;
+    fill('history-list', entries, entry => {
+      const date = entry.at ? new Date(entry.at).toLocaleString('pt-BR') : '';
+      const item = row(actionLabels[entry.action] || entry.action, date);
+      const target = auditTarget(entry);
+      if (target) {
+        const link = element('a', 'Abrir contexto', 'audit-context');
+        link.href = target;
+        item.append(link);
+      }
+      return item;
+    }, 'Nenhum evento encontrado.');
+    const pager = byId('audit-pagination');
+    pager.replaceChildren();
+    for (const [label, page, visible] of [
+      ['Anterior', Math.max(0, offset - limit), offset > 0],
+      ['Próxima', offset + limit, offset + limit < total],
+    ]) {
+      if (!visible) continue;
+      const button = element('button', label, 'button button-quiet');
+      button.type = 'button';
+      button.dataset.auditPage = String(page);
+      pager.append(button);
+    }
+    pager.append(element('span', total ? (offset + 1) + '–' + Math.min(offset + limit, total) + ' de ' + total : '0 eventos'));
+  } catch (error) {
+    if (sequence !== auditRequest) return;
+    setText('history-list', error.message);
+    byId('audit-pagination').replaceChildren();
+  }
 }
 
 function applyPreviewSize() {
@@ -879,7 +933,7 @@ async function submitCheck(action, data) {
 }
 
 function update(snapshot) {
-  if (snapshot.audit.length < state.audit.length) return;
+  if ((snapshot.auditVersion ?? snapshot.audit.length) < (state.auditVersion ?? state.audit.length)) return;
   const readNotifications = new Set((state.notifications || []).filter(item => item.read).map(item => item.id));
   const notifications = Array.isArray(snapshot.notifications) ? snapshot.notifications.map(item => readNotifications.has(item.id) ? { ...item, read: true } : item) : state.notifications;
   state = { ...state, ...snapshot, notifications };
@@ -930,6 +984,14 @@ async function mutate(action, data) {
 
 document.addEventListener('submit', async event => {
   const form = event.target;
+  if (form.id === 'audit-filters') {
+    event.preventDefault();
+    auditOffset = 0;
+    auditQuery = byId('audit-search').value;
+    auditKind = byId('audit-kind').value;
+    void loadAudit();
+    return;
+  }
   if (form.matches('[data-executor-policy]')) {
     event.preventDefault();
     const maxActive = form.querySelector('[data-policy-max]').valueAsNumber;
@@ -1003,6 +1065,7 @@ document.addEventListener('change', async event => {
     if (input.value) void loadGraph(input.value);
     else setText('graph-status', 'Selecione um objetivo para carregar o grafo.');
   }
+
   if (input.name === 'objectiveId') activeDependencies();
   if (!input.dataset.task) return;
   input.disabled = true;
@@ -1013,6 +1076,8 @@ document.addEventListener('change', async event => {
 });
 
 document.addEventListener('click', event => {
+  const auditPage = event.target.closest('[data-audit-page]');
+  if (auditPage) { auditOffset = Number(auditPage.dataset.auditPage) || 0; loadAudit(); return; }
   const graphNode = event.target.closest('[data-graph-node]');
   if (graphNode) showGraphNode(graphNode.dataset.graphNode);
 });

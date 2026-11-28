@@ -99,6 +99,18 @@ test('serializes concurrent mutations and keeps audit free of supplied titles', 
   assert.doesNotMatch(auditText, /private objective title|private task title/);
   assert.equal((await fetch(origin, { headers: { 'sec-fetch-site': 'same-site' } })).status, 403);
   assert.equal((await post('task.state', { id: snapshot.tasks[0].id, state: 'done' }, { 'sec-fetch-site': 'same-site' })).status, 403);
+
+  const more = await Promise.all(Array.from({ length: 55 }, (_, index) =>
+    post('task.create', { objectiveId: objective.id, title: `private history fixture ${index}` })));
+  assert.ok(more.every(response => response.status === 200));
+  const compact = await (await fetch(origin)).json();
+  assert.equal(compact.audit.length, 50);
+  assert.equal(compact.auditVersion, 65);
+  const history = await (await fetch(origin + '/?view=audit&kind=task&q=Concurrent&limit=2&offset=61')).json();
+  assert.equal(history.total, 63);
+  assert.equal(history.entries.length, 2);
+  assert.equal(history.entries.at(-1).result, snapshot.tasks[0].id);
+  assert.doesNotMatch(JSON.stringify(history), /private history fixture|private objective title/);
 });
 
 test('previews and registers a dependent plan and executes a project script over HTTP', async t => {

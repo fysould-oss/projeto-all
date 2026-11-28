@@ -10,7 +10,7 @@ Para gerar um rascunho, escreva as ações no objetivo e separe etapas explícit
 
 Na seção Grafo, selecione um objetivo para ver os níveis de dependência. Selecione uma tarefa para consultar estado, dependências pendentes e o atalho para a lista. Uma tarefa pendente aparece como pronta quando suas dependências estiverem concluídas. Dependências de outros objetivos aparecem como contexto.
 
-A seção Git mostra status e diff das alterações rastreadas contra HEAD. A seção Qualidade executa `git diff --check HEAD`. O painel resume sessões observadas, núcleos lógicos e uso de RAM. O histórico lista as últimas 50 operações de cadastro e transição de estado.
+A seção Git mostra status e diff das alterações rastreadas contra HEAD. A seção Qualidade executa `git diff --check HEAD`. O painel resume sessões observadas, núcleos lógicos e uso de RAM. Em **Histórico de auditoria**, filtre por tipo ou busque por projeto, objetivo, tarefa ou identificador. Os resultados são paginados e incluem atalhos quando o item ainda está disponível.
 
 Em Git, selecione um projeto e consulte os arquivos alterados. Use **Preparar** ou **Retirar do índice** na linha do arquivo. Essas operações atuam no índice e preservam a cópia de trabalho. **Ver diff preparado** mostra o conteúdo atual do índice antes de solicitar o commit.
 

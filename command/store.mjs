@@ -9,6 +9,7 @@ import { preparePush, executePush } from './push.mjs';
 import { normalizePreviewUrl } from './previews.mjs';
 import { mergeCheckHistory } from './check-history.mjs';
 import { notificationsFromAudit } from './notifications.mjs';
+import { auditMetadata, searchAudit } from './audit-search.mjs';
 
 const STATES = new Set(['pending', 'running', 'blocked', 'review', 'done', 'failed', 'cancelled']);
 const ACTIONS = new Set(['project.create', 'project.executorPolicy', 'objective.create', 'objective.plan', 'task.create', 'task.state', 'preview.save', 'notification.read']);
@@ -73,8 +74,8 @@ export async function createStore(path) {
     }
   }
 
-  function audit(next, action, data, result) {
-    next.audit.push({ id: randomUUID(), at: now(), action, result,
+  function audit(next, action, data, result, projectId) {
+    next.audit.push({ id: randomUUID(), at: now(), action, result, ...(projectId && { projectId }),
       fields: ['name', 'path', 'projectId', 'title', 'objectiveId', 'dependencies', 'id', 'state', 'enabled', 'maxActive']
         .filter(field => Object.hasOwn(data, field)) });
   }
@@ -116,8 +117,8 @@ export async function createStore(path) {
   }
   if (interrupted.length || interruptedChecks.length || interruptedDispatches.length) await persist(state);
 
-  async function save(next, action, data, result) {
-    audit(next, action, data, result.id);
+  async function save(next, action, data, result, projectId) {
+    audit(next, action, data, result.id, projectId);
     await persist(next);
     state = next;
     return clone(result);
@@ -281,7 +282,7 @@ export async function createStore(path) {
     if (!run) return;
     const next = clone(state);
     next.checkHistory = mergeCheckHistory(next.checkHistory, projectId, run);
-    await save(next, 'check.' + run.status, {}, run);
+    await save(next, 'check.' + run.status, {}, run, projectId);
   }
 
   async function dispatchTask(data, prepare) {
@@ -501,15 +502,17 @@ export async function createStore(path) {
 
   return {
     snapshot() {
-      const snapshot = clone(state);
-      delete snapshot.checkHistory;
-      snapshot.notifications = notificationsFromAudit(state.audit, state.readNotifications);
-      delete snapshot.readNotifications;
+      const { audit, readNotifications, checkHistory, ...publicState } = state;
+      const snapshot = clone(publicState);
+      snapshot.audit = clone(audit.slice(-50).map(auditMetadata));
+      snapshot.auditVersion = audit.length;
+      snapshot.notifications = notificationsFromAudit(audit, readNotifications);
       snapshot.approvals = snapshot.approvals.map(({ prepared, ...approval }) => ({
         ...approval, state: expired(approval) ? 'expired' : approval.state,
       }));
       return snapshot;
     },
+    searchAudit(params) { return searchAudit(state, params); },
     checkHistory(projectId) { return clone(state.checkHistory.filter(run => run.projectId === projectId)); },
     approvalDiffContext(approvalId) {
       const approval = state.approvals.find(item => item.id === approvalId && item.kind === 'git.commit');

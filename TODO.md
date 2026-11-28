@@ -33,6 +33,7 @@
 - [x] Vincular a execução de um script de qualidade à tarefa, às suas dependências e ao resultado persistido no grafo.
 - [x] Preservar metadados recentes das verificações, com consulta após reinício e saída mantida em memória.
 - [x] Notificar localmente solicitações de aprovação e resultados de verificações e agentes, com estado de leitura persistente.
+- [x] Pesquisar e filtrar o histórico de auditoria completo com paginação e atalhos de contexto.
 - [x] Agendar scripts escolhidos pelo operador para iniciar quando as dependências forem concluídas e houver capacidade.
 - [x] Pausar novas execuções por objetivo, retomar a fila e cancelar verificações e tarefas inacabadas do objetivo.
 - [ ] Integrar stage, commit, push, PR, checks e deploy com confirmação e recuperação.

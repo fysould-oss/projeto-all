@@ -205,6 +205,10 @@ export function createCommandApi(file, getActivity, {
       return;
     }
     const kind = url.searchParams.get('view');
+    if (kind === 'audit') {
+      send(response, headers, 200, database.searchAudit(url.searchParams));
+      return;
+    }
     if (!kind || ['graph', 'coordinator-jobs', 'executor-review'].includes(kind)) await synchronizeExecutor(database);
     const snapshot = database.snapshot();
     if (kind === 'executor-review') {

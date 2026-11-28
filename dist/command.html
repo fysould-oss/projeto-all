@@ -125,7 +125,20 @@
             <div class="notification-toolbar"><button class="button button-quiet" type="button" data-notification-read-all disabled>Marcar todas como lidas</button></div>
             <div id="notifications-list" class="stack-list"><p class="empty-state">Nenhuma notificação local.</p></div>
           </section>
-          <section class="panel" id="historico" data-panel="historico" aria-labelledby="history-title"><header class="panel-header"><div><p class="eyebrow">AUDITORIA</p><h2 id="history-title">Histórico</h2></div></header><div id="history-list" class="timeline"><p class="empty-state">Nenhum evento registrado.</p></div></section>
+          <section class="panel" id="historico" data-panel="historico" aria-labelledby="history-title">
+            <header class="panel-header"><h2 id="history-title">Histórico de auditoria</h2></header>
+            <form id="audit-filters" class="audit-controls">
+              <label>Busca <input id="audit-search" type="search" maxlength="120" placeholder="Projeto, tarefa ou ID"></label>
+              <label>Tipo <select id="audit-kind">
+                <option value="all">Todos</option><option value="project">Projetos</option><option value="objective">Objetivos</option>
+                <option value="task">Tarefas</option><option value="approval">Aprovações</option><option value="check">Verificações</option>
+                <option value="git">Git</option><option value="preview">Previews</option>
+              </select></label>
+              <button class="button button-quiet" type="submit">Pesquisar</button>
+            </form>
+            <div id="history-list" class="timeline"><p class="empty-state">Nenhum evento registrado.</p></div>
+            <div id="audit-pagination" class="audit-pagination" aria-label="Paginação do histórico"></div>
+          </section>
         </div>
 
         <details class="panel display-settings">
