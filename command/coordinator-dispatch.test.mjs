@@ -68,11 +68,15 @@ test('dispatch associates a persistent queue job with a task and requires review
   const { id: jobId, status } = sent.tasks.at(-1).executor;
   assert.equal(status, 'queued');
   await post('task.dispatch', { id: taskId }, 400);
-  await post('objective.control', { id: objective.id, control: 'cancel' }, 400);
   const jobs = await (await fetch(origin + '/?view=coordinator-jobs')).json();
   assert.equal(jobs.dispatchEnabled, true);
   assert.equal(jobs.jobs[0].id, jobId);
   assert.doesNotMatch(JSON.stringify(jobs), /Synthetic private instruction/);
+  const running = new DatabaseSync(join(directory, 'jobs.sqlite'));
+  running.prepare("UPDATE jobs SET status='running' WHERE id=?").run(jobId);
+  running.close();
+  await post('objective.control', { id: objective.id, control: 'cancel' }, 400);
+  await post('task.executor.cancel', { id: taskId }, 400);
 
   const base = git('rev-parse', 'HEAD').toString().trim();
   const worktree = join(directory, 'worktrees', jobId);
@@ -109,4 +113,34 @@ test('dispatch associates a persistent queue job with a task and requires review
   const final = await (await fetch(reviewUrl)).json();
   const done = await post('task.state', { id: taskId, state: 'done', reviewRevision: final.revision, confirmUntracked: true });
   assert.equal(done.tasks.at(-1).state, 'done');
+
+  const cancelId = (await post('task.create', { objectiveId: objective.id, title: 'Another synthetic instruction' })).tasks.at(-1).id;
+  const toCancel = (await post('task.dispatch', { id: cancelId })).tasks.at(-1).executor.id;
+  const cancelled = await post('task.executor.cancel', { id: cancelId });
+  assert.equal(cancelled.tasks.at(-1).state, 'cancelled');
+  assert.equal(cancelled.tasks.at(-1).executor.status, 'cancelled');
+  await post('task.executor.cancel', { id: cancelId }, 400);
+  const verify = new DatabaseSync(join(directory, 'jobs.sqlite'), { readOnly: true });
+  try {
+    const row = verify.prepare('SELECT status,result,prompt FROM jobs WHERE id=?').get(toCancel);
+    assert.equal(row.status, 'failed');
+    assert.equal(row.result, 'cancelled');
+    assert.equal(row.prompt, '');
+  } finally {
+    verify.close();
+  }
+  const bulkIds = [];
+  for (const title of ['Queued one', 'Queued two']) {
+    const id = (await post('task.create', { objectiveId: objective.id, title })).tasks.at(-1).id;
+    await post('task.dispatch', { id });
+    bulkIds.push(id);
+  }
+  const objectiveCancelled = await post('objective.control', { id: objective.id, control: 'cancel' });
+  assert.equal(objectiveCancelled.objectives[0].status, 'cancelled');
+  assert.equal(objectiveCancelled.tasks.find(task => task.id === taskId).state, 'done');
+  for (const id of bulkIds) {
+    const task = objectiveCancelled.tasks.find(item => item.id === id);
+    assert.equal(task.state, 'cancelled');
+    assert.equal(task.executor.status, 'cancelled');
+  }
 });

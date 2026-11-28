@@ -8,6 +8,7 @@ import { objectiveGraph } from './graph.mjs';
 import { readCoordinatorJobs } from './coordinator-status.mjs';
 import { prepareCoordinatorDispatch } from './coordinator-dispatch.mjs';
 import { readCoordinatorReview } from './coordinator-review.mjs';
+import { cancelQueuedCoordinatorJob, cancelQueuedCoordinatorJobs } from './coordinator-cancel.mjs';
 import { homedir } from 'node:os';
 import { isAbsolute, join } from 'node:path';
 
@@ -135,6 +136,17 @@ export function createCommandApi(file, getActivity, {
       }
       try {
         const { action, data } = await readAction(request);
+        if (action === 'task.executor.cancel') {
+          await synchronizeExecutor(database);
+          try {
+            await database.cancelExecutorTask(data, id => cancelQueuedCoordinatorJob(coordinatorDirectory, id));
+          } catch (error) {
+            await synchronizeExecutor(database);
+            throw error;
+          }
+          send(response, headers, 200, database.snapshot());
+          return;
+        }
         if (action === 'task.dispatch') {
           if (!dispatchEnabled) {
             send(response, headers, 503, { error: 'Configure o módulo do executor Codex no servidor.' });
@@ -147,7 +159,7 @@ export function createCommandApi(file, getActivity, {
         }
         if (action === 'objective.control') {
           if (data?.control === 'cancel') await synchronizeExecutor(database);
-          const { project, runIds } = await database.controlObjective(data);
+          const { project, runIds } = await database.controlObjective(data, ids => cancelQueuedCoordinatorJobs(coordinatorDirectory, ids));
           await Promise.all(runIds.map(id => checks.cancel(project, id)));
           send(response, headers, 200, database.snapshot());
           scheduleDrain();

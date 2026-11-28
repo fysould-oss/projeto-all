@@ -2,7 +2,7 @@ import { access } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 const STATUSES = new Set(['queued', 'running', 'done', 'failed', 'waiting_remote']);
-const RESULTS = new Set(['worktree_failed', 'executor_failed', 'interrupted', 'turn_incomplete', 'turn_completed', 'turn_failed']);
+const RESULTS = new Set(['worktree_failed', 'executor_failed', 'interrupted', 'turn_incomplete', 'turn_completed', 'turn_failed', 'cancelled']);
 
 function time(value) {
   if (typeof value !== 'string' || value.length > 35) return undefined;
@@ -32,6 +32,7 @@ export async function readCoordinatorJobs(directory, ids = null) {
         files: Number.isSafeInteger(row.files) && row.files >= 0 ? row.files : undefined,
       };
       if (STATUSES.has(row.status)) job.status = row.status;
+      if (row.status === 'failed' && row.result === 'cancelled') job.status = 'cancelled';
       if (RESULTS.has(row.result) || (typeof row.result === 'string' && /^executor_exit_(?:\d{1,5}|signal)$/.test(row.result))) {
         job.result = row.result;
       }

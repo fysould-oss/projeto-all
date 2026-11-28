@@ -310,6 +310,7 @@ export async function createStore(path) {
       task.executor = { id: job.id, status: job.status, updated: job.updated, files: job.files };
       if (job.status === 'done') task.state = 'review';
       if (job.status === 'failed') task.state = 'failed';
+      if (job.status === 'cancelled') task.state = 'cancelled';
       task.updatedAt = now();
       audit(next, 'task.executor.' + job.status, {}, task.id);
       changed = true;
@@ -320,22 +321,46 @@ export async function createStore(path) {
     }
   }
 
-  async function controlObjective(data) {
+  async function cancelExecutorTask(data, cancelQueued) {
+    const next = clone(state);
+    const task = next.tasks.find(item => item.id === data?.id);
+    if (task?.executor?.status !== 'queued') throw new Error('A tarefa Codex já saiu da fila.');
+    if (!(await cancelQueued(task.executor.id))) {
+      throw new Error('O executor já assumiu ou encerrou esta tarefa. Atualize o estado da fila.');
+    }
+    task.state = 'cancelled';
+    task.updatedAt = now();
+    task.executor = { ...task.executor, status: 'cancelled', updated: task.updatedAt };
+    await save(next, 'task.executor.cancelled', data, task);
+  }
+
+  async function controlObjective(data, cancelQueuedBatch) {
     const next = clone(state);
     const objective = next.objectives.find(item => item.id === data?.id);
     if (!objective) throw new Error('Objetivo não encontrado.');
     const { control } = data;
     if (!['pause', 'resume', 'cancel'].includes(control)) throw new Error('Controle inválido.');
     if (objective.status === 'cancelled') throw new Error('O objetivo foi cancelado.');
-    if (control === 'cancel' && next.tasks.some(task => task.objectiveId === objective.id
-      && ['dispatching', 'queued', 'running', 'dispatch_unknown'].includes(task.executor?.status))) {
-      throw new Error('Resolva a execução Codex na fila local antes de cancelar o objetivo.');
+    const tasks = next.tasks.filter(item => item.objectiveId === objective.id);
+    if (control === 'cancel') {
+      if (tasks.some(task => ['dispatching', 'running', 'dispatch_unknown'].includes(task.executor?.status))) {
+        throw new Error('Resolva a execução Codex ativa antes de cancelar o objetivo.');
+      }
+      const queued = tasks.filter(task => task.executor?.status === 'queued');
+      if (queued.length && (!cancelQueuedBatch || !(await cancelQueuedBatch(queued.map(task => task.executor.id))))) {
+        throw new Error('A fila Codex mudou. Atualize o objetivo e tente novamente.');
+      }
+      for (const task of queued) {
+        task.executor.status = 'cancelled';
+        task.executor.updated = now();
+        audit(next, 'task.executor.cancelled', {}, task.id);
+      }
     }
     objective.status = { pause: 'paused', resume: 'active', cancel: 'cancelled' }[control];
     objective.updatedAt = now();
     const runIds = [];
     if (control === 'cancel') {
-      for (const task of next.tasks.filter(item => item.objectiveId === objective.id)) {
+      for (const task of tasks) {
         if (task.check?.status === 'running') runIds.push(task.check.id);
         if (task.state === 'done' || task.state === 'cancelled') continue;
         task.state = 'cancelled';
@@ -472,8 +497,9 @@ export async function createStore(path) {
     recordCheck(projectId, run) { return serialize(() => recordCheck(projectId, run)); },
     scheduleTask(data, checks) { return serialize(() => scheduleTask(data, checks)); },
     failScheduledTask(id, script) { return serialize(() => failScheduledTask(id, script)); },
-    controlObjective(data) { return serialize(() => controlObjective(data)); },
+    controlObjective(data, cancelQueuedBatch) { return serialize(() => controlObjective(data, cancelQueuedBatch)); },
     dispatchTask(data, enqueue) { return serialize(() => dispatchTask(data, enqueue)); },
     syncExecutorJobs(jobs) { return serialize(() => syncExecutorJobs(jobs)); },
+    cancelExecutorTask(data, cancelQueued) { return serialize(() => cancelExecutorTask(data, cancelQueued)); },
   };
 }

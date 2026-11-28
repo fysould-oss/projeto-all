@@ -11,6 +11,7 @@ const planRoles = {
 const modelTiers = { economy: 'econômico', balanced: 'equilibrado', advanced: 'avançado' };
 const checkLabels = { running: 'Em execução', passed: 'Aprovada', failed: 'Falhou', cancelled: 'Cancelada', timed_out: 'Tempo limite', interrupted: 'Interrompida' };
 const executorLabels = {
+  cancelled: 'Cancelada',
   dispatching: 'Enviando', queued: 'Na fila', running: 'Em execução', done: 'Concluída',
   failed: 'Falhou', waiting_remote: 'Aguardando executor', dispatch_unknown: 'Envio não confirmado. Confira a fila local.',
 };
@@ -31,6 +32,8 @@ const actionLabels = {
   'task.executor.running': 'Tarefa em execução no Codex', 'task.executor.done': 'Tarefa Codex pronta para revisão',
   'task.executor.failed': 'Execução Codex falhou', 'task.executor.dispatch_unknown': 'Envio ao Codex não confirmado',
   'task.dispatch.interrupted': 'Envio ao Codex interrompido',
+  'task.executor.cancel': 'Execução Codex cancelada',
+  'task.executor.cancelled': 'Envio retirado da fila Codex',
   'task.check': 'Verificação da tarefa iniciada', 'task.check.passed': 'Verificação da tarefa aprovada',
   'task.check.failed': 'Verificação da tarefa falhou', 'task.check.cancelled': 'Verificação da tarefa cancelada',
   'task.check.timed_out': 'Verificação excedeu o tempo limite', 'task.check.interrupted': 'Verificação da tarefa interrompida',
@@ -244,7 +247,15 @@ function renderTasks() {
     }
     item.append(select);
     if (check) item.append(checkInfo(check));
-    if (task.executor) item.append(executorInfo(task.executor));
+    if (task.executor) {
+      item.append(executorInfo(task.executor));
+      if (task.executor.status === 'queued') {
+        const cancelExecutor = element('button', 'Retirar da fila Codex', 'button button-quiet');
+        cancelExecutor.type = 'button';
+        cancelExecutor.dataset.executorCancel = task.id;
+        item.append(cancelExecutor);
+      }
+    }
     if (task.state === 'review' && task.executor?.status === 'done') {
       const review = element('button', 'Revisar alterações', 'button button-quiet');
       review.type = 'button';
@@ -908,6 +919,14 @@ document.addEventListener('click', event => {
 });
 
 document.addEventListener('click', async event => {
+  const cancelExecutor = event.target.closest('[data-executor-cancel]');
+  if (cancelExecutor) {
+    if (!window.confirm('Cancelar a execução Codex desta tarefa?')) return;
+    cancelExecutor.disabled = true;
+    await mutate('task.executor.cancel', { id: cancelExecutor.dataset.executorCancel });
+    cancelExecutor.disabled = false;
+    return;
+  }
   const reviewButton = event.target.closest('[data-task-review]');
   if (reviewButton) {
     reviewButton.disabled = true;
