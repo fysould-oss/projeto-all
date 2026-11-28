@@ -1332,6 +1332,23 @@ document.addEventListener('click', async event => {
           output.append(' · ' + checks.total + ' checks' + (checks.partial ? ' (parcial)' : '') + (summary ? ' · ' + summary : ''));
         }
         output.append(' · ', linkTo('Ver checks', pull.url + '/checks'));
+        output.append(' · ', linkTo('Ver arquivos alterados', pull.url + '/files'));
+        const workflows = pull.workflows;
+        const workflowStates = new Map([
+          ['queued', 'na fila'], ['requested', 'solicitado'], ['pending', 'pendente'], ['waiting', 'aguardando'],
+          ['in_progress', 'em execução'], ['success', 'aprovado'], ['failure', 'falhou'], ['cancelled', 'cancelado'],
+          ['timed_out', 'tempo limite'], ['neutral', 'neutro'], ['skipped', 'ignorado'], ['action_required', 'requer ação'],
+        ]);
+        if (!workflows) output.append('\n  GitHub Actions indisponível.');
+        else if (!workflows.total) output.append('\n  Sem workflows do GitHub Actions para este commit.');
+        else {
+          output.append('\n  GitHub Actions: ' + workflows.total + (workflows.partial ? ' · Lista parcial' : ''));
+          for (const run of workflows.runs) {
+            output.append('\n    ', linkTo(run.name, run.url),
+              run.attempt > 1 ? ' · tentativa ' + run.attempt : '',
+              ' · ' + (workflowStates.get(run.state) ?? 'estado desconhecido'));
+          }
+        }
         const statuses = pull.statuses;
         const statusLabels = { success: 'aprovado', pending: 'pendente', failure: 'falhou', error: 'erro', unknown: 'desconhecido' };
         if (!statuses) output.append('\n  CI externo indisponível.');

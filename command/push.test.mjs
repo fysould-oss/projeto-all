@@ -5,7 +5,30 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { preparePush, executePush, githubRepository, summarizeGitHubChecks, summarizeGitHubStatuses, summarizeGitHubReviews } from './push.mjs';
+import { preparePush, executePush, githubRepository, summarizeGitHubChecks, summarizeGitHubStatuses,
+  summarizeGitHubReviews, summarizeGitHubWorkflows } from './push.mjs';
+
+test('projects workflow runs for the exact PR commit and rejects invalid run data', () => {
+  const sha = 'a'.repeat(40);
+  assert.equal(summarizeGitHubWorkflows(null, sha), null);
+  assert.deepEqual(summarizeGitHubWorkflows({ total_count: 0, workflow_runs: [] }, sha), {
+    total: 0, runs: [], partial: false,
+  });
+  const workflow_runs = [
+    { head_sha: sha, id: 1, name: ' APK ', status: 'completed', conclusion: 'success', run_attempt: 2, html_url: 'https://example.invalid' },
+    { head_sha: sha, id: 2, status: 'in_progress' },
+    { head_sha: sha, id: 3, status: 'completed', conclusion: { invalid: true } },
+    { head_sha: 'b'.repeat(40), id: 4 },
+    { head_sha: sha, id: -1 },
+  ];
+  assert.deepEqual(summarizeGitHubWorkflows({ total_count: 5, workflow_runs }, sha), {
+    total: 5, runs: [
+      { id: 1, name: 'APK', state: 'success', attempt: 2 },
+      { id: 2, name: 'Workflow', state: 'in_progress', attempt: null },
+      { id: 3, name: 'Workflow', state: null, attempt: null },
+    ], partial: true,
+  });
+});
 
 test('summarizes current reviews without letting comments overwrite decisions', () => {
   const sha = 'a'.repeat(40);

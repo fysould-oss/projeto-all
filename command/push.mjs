@@ -157,6 +157,23 @@ export function summarizeGitHubReviews(reviews, sha) {
   return summary;
 }
 
+export function summarizeGitHubWorkflows(payload, sha) {
+  if (!Number.isSafeInteger(payload?.total_count) || payload.total_count < 0
+    || !Array.isArray(payload.workflow_runs)) return null;
+  const runs = payload.workflow_runs.slice(0, 10)
+    .filter(run => run?.head_sha === sha && Number.isSafeInteger(run.id) && run.id > 0)
+    .map(run => {
+      const state = run.status === 'completed' ? run.conclusion : run.status;
+      return {
+        id: run.id,
+        name: typeof run.name === 'string' && run.name.trim() ? run.name.trim().slice(0, 150) : 'Workflow',
+        state: typeof state === 'string' && /^[a-z_]{1,32}$/.test(state) ? state : null,
+        attempt: Number.isSafeInteger(run.run_attempt) && run.run_attempt > 0 ? run.run_attempt : null,
+      };
+    });
+  return { total: payload.total_count, runs, partial: runs.length !== payload.total_count };
+}
+
 export async function githubPullRequests(project) {
   const cwd = await repository(project);
   const branch = (await git(cwd, ['branch', '--show-current'])).trim();
@@ -185,10 +202,15 @@ export async function githubPullRequests(project) {
         const commit = new URL('/repos/' + entry.name + '/commits/' + sha + '/', api);
         const checkUrl = new URL('check-runs?filter=latest&per_page=100', commit);
         const statusUrl = new URL('status?per_page=10', commit);
-        const [checkRuns, statuses] = await Promise.all([
+        const workflowUrl = new URL('/repos/' + entry.name + '/actions/runs', api);
+        workflowUrl.search = new URLSearchParams({ head_sha: sha, per_page: '10' });
+        const [checkRuns, statuses, workflows] = await Promise.all([
           fetchGitHubJson(checkUrl).catch(() => null), fetchGitHubJson(statusUrl).catch(() => null),
+          fetchGitHubJson(workflowUrl).catch(() => null),
         ]);
-        return [sha, { checks: summarizeGitHubChecks(checkRuns), statuses: summarizeGitHubStatuses(statuses, sha) }];
+        const summary = summarizeGitHubWorkflows(workflows, sha);
+        if (summary) summary.runs = summary.runs.map(run => ({ ...run, url: base + '/actions/runs/' + run.id }));
+        return [sha, { checks: summarizeGitHubChecks(checkRuns), statuses: summarizeGitHubStatuses(statuses, sha), workflows: summary }];
       }));
       const reviewsByPull = Promise.all(safePulls.slice(0, 4).map(async pull => {
         const url = new URL('/repos/' + entry.name + '/pulls/' + pull.number + '/reviews?per_page=100', api);
@@ -202,7 +224,7 @@ export async function githubPullRequests(project) {
         const sha = shaFor(pull);
         return { number: pull.number, draft: pull.draft === true, url: base + '/pull/' + pull.number,
           sha, checks: ci.get(sha)?.checks ?? null, statuses: ci.get(sha)?.statuses ?? null,
-          reviews: reviewSummaries.get(pull.number) ?? null };
+          reviews: reviewSummaries.get(pull.number) ?? null, workflows: ci.get(sha)?.workflows ?? null };
       });
     }
   } catch {}
