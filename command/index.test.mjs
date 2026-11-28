@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { spawn } from 'node:child_process';
-import { listFiles, changeIndex, listCommittedPaths } from './index.mjs';
+import { listFiles, changeIndex, listCommittedPaths, readCommittedText } from './index.mjs';
 
 function run(cwd, args) {
   return new Promise((resolve, reject) => {
@@ -47,6 +47,28 @@ test('paginates committed paths and detects a changed tree between pages', async
   assert.equal(last.next, null);
   await run(dir, ['commit', '-m', 'draft']);
   await assert.rejects(() => listCommittedPaths(dir, { offset: first.next, revision: first.revision }), /HEAD mudou/);
+});
+
+test('reads only bounded regular UTF-8 blobs from the selected Git tree', async t => {
+  const dir = await fixture(t);
+  await writeFile(join(dir, '-literal ü.txt'), '<b>original</b>');
+  await writeFile(join(dir, 'binary.txt'), Buffer.from([0, 0xff]));
+  await writeFile(join(dir, 'encoding.txt'), Buffer.from([0xff]));
+  await writeFile(join(dir, 'large.txt'), 'x'.repeat(65537));
+  await run(dir, ['add', '--all']);
+  await run(dir, ['commit', '-m', 'blobs']);
+  const { revision } = await listCommittedPaths(dir);
+  await writeFile(join(dir, '-literal ü.txt'), 'working tree');
+  const read = path => readCommittedText(dir, { path, revision });
+  assert.deepEqual(await read('-literal ü.txt'), { path: '-literal ü.txt', revision, bytes: 15, text: '<b>original</b>' });
+  await assert.rejects(() => read('../tracked.txt'), /inválida/);
+  await assert.rejects(() => read('missing.txt'), /arquivo regular/);
+  await assert.rejects(() => read('binary.txt'), /UTF-8/);
+  await assert.rejects(() => read('encoding.txt'), /UTF-8/);
+  await assert.rejects(() => read('large.txt'), /64 KiB/);
+  await run(dir, ['add', '--all']);
+  await run(dir, ['commit', '-m', 'new tree']);
+  await assert.rejects(() => read('tracked.txt'), /HEAD mudou/);
 });
 
 test('lists and stages/unstages without changing worktree content', async t => {

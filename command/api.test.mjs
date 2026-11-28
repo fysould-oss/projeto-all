@@ -51,7 +51,12 @@ test('persists workflow, gates dependent tasks and inspects a real Git worktree'
   assert.deepEqual(await refsResponse.json(), { tags: [], stashes: [], moreTags: false, moreStashes: false });
   const pathsResponse = await fetch(origin + '/?view=committed-paths&q=SAMPLE&project=' + project.id);
   assert.equal(pathsResponse.status, 200);
-  assert.deepEqual((await pathsResponse.json()).paths, ['sample.txt']);
+  const committedPaths = await pathsResponse.json();
+  assert.deepEqual(committedPaths.paths, ['sample.txt']);
+  const textQuery = new URLSearchParams({ view: 'committed-text', project: project.id, path: 'sample.txt', revision: committedPaths.revision });
+  const textResponse = await fetch(origin + '/?' + textQuery);
+  assert.equal(textResponse.status, 200);
+  assert.equal((await textResponse.json()).text, 'original\n');
   const { objectives: [objective] } = await mutate('objective.create', { projectId: project.id, title: 'Entrega' });
   const { tasks: [first] } = await mutate('task.create', { objectiveId: objective.id, title: 'Verificar', dependencies: [] });
   const { tasks } = await mutate('task.create', { objectiveId: objective.id, title: 'Revisar', dependencies: [first.id] });

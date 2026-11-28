@@ -17,12 +17,12 @@ function samePath(a, b) {
   return process.platform === 'win32' ? left.toLowerCase() === right.toLowerCase() : left === right;
 }
 
-async function git(cwd, args, message = 'Não foi possível consultar o estado Git.', maxBuffer = 256 * 1024) {
+async function git(cwd, args, message = 'Não foi possível consultar o estado Git.', maxBuffer = 256 * 1024, encoding = 'utf8') {
   const env = Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.toUpperCase().startsWith('GIT_')));
   try {
     const { stdout } = await execute('git', [
       '--literal-pathspecs', '-c', 'core.fsmonitor=false', '-c', 'core.hooksPath=' + process.execPath, ...args,
-    ], { cwd, env, windowsHide: true, timeout: 5000, maxBuffer });
+    ], { cwd, env, windowsHide: true, timeout: 5000, maxBuffer, encoding });
     return stdout;
   } catch {
     throw new Error(message);
@@ -58,14 +58,19 @@ export async function listFiles(project) {
   return parseStatus(await git(cwd, ['status', '--porcelain=v1', '-z', '--untracked-files=all', '--']));
 }
 
+async function committedTree(cwd, revision) {
+  await ensureRoot(cwd);
+  const tree = (await git(cwd, ['--no-replace-objects', 'rev-parse', '--verify', 'HEAD^{tree}'], 'Não foi possível localizar uma árvore no HEAD.')).trim();
+  if (revision && revision !== tree) throw new Error('O HEAD mudou. Faça uma nova busca para atualizar a lista.');
+  return tree;
+}
+
 export async function listCommittedPaths(project, { query = '', offset = 0, revision = '' } = {}) {
   if (typeof query !== 'string' || query.length > 120 || !Number.isSafeInteger(offset) || offset < 0 || offset > 200000) {
     throw new Error('Filtro ou página de arquivos inválida.');
   }
   const cwd = repoPath(project);
-  await ensureRoot(cwd);
-  const tree = (await git(cwd, ['--no-replace-objects', 'rev-parse', '--verify', 'HEAD^{tree}'], 'Não foi possível localizar uma árvore no HEAD.')).trim();
-  if (revision && revision !== tree) throw new Error('O HEAD mudou. Faça uma nova busca para atualizar a lista.');
+  const tree = await committedTree(cwd, revision);
   const raw = await git(cwd, ['--no-replace-objects', 'ls-tree', '-r', '--name-only', '-z', tree],
     'Não foi possível listar a árvore Git dentro do limite de leitura.', 2 * 1024 * 1024);
   const needle = query.trim().toLowerCase();
@@ -73,6 +78,35 @@ export async function listCommittedPaths(project, { query = '', offset = 0, revi
   const pageSize = 60;
   const paths = matches.slice(offset, offset + pageSize);
   return { revision: tree, paths, total: matches.length, next: offset + pageSize < matches.length ? offset + pageSize : null };
+}
+
+export async function readCommittedText(project, { path, revision } = {}) {
+  if (typeof path !== 'string' || !path || path.length > 4096 || path.includes('\0')
+    || path.split('/').some(part => !part || part === '.' || part === '..')
+    || typeof revision !== 'string' || !/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(revision)) {
+    throw new Error('Caminho ou revisão inválida.');
+  }
+  const cwd = repoPath(project);
+  const tree = await committedTree(cwd, revision);
+  const entry = await git(cwd, ['--no-replace-objects', 'ls-tree', '-z', tree, '--', path]);
+  const match = /^100(?:644|755) blob ([a-f0-9]{40}|[a-f0-9]{64})\t/.exec(entry);
+  if (!match || entry.slice(match[0].length) !== path + '\0') {
+    throw new Error('Selecione um arquivo regular desta revisão.');
+  }
+  const maxBytes = 64 * 1024;
+  const object = match[1];
+  const bytes = Number((await git(cwd, ['--no-replace-objects', 'cat-file', '-s', object])).trim());
+  if (!Number.isSafeInteger(bytes) || bytes < 0 || bytes > maxBytes) {
+    throw new Error('O arquivo excede o limite de 64 KiB da visualização.');
+  }
+  const content = await git(cwd, ['--no-replace-objects', 'cat-file', 'blob', object],
+    'Não foi possível ler o arquivo do Git.', maxBytes, 'buffer');
+  try {
+    if (content.includes(0)) throw new Error();
+    return { path, revision: tree, bytes, text: new TextDecoder('utf-8', { fatal: true }).decode(content) };
+  } catch {
+    throw new Error('A visualização aceita arquivos de texto UTF-8.');
+  }
 }
 
 export async function changeIndex(project, action, path) {

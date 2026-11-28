@@ -407,19 +407,49 @@ function prepareCommittedPaths(target, projectSelect) {
   form.append(label, search, next);
   const status = element('p', 'Selecione um projeto e consulte os arquivos do último commit.');
   status.setAttribute('role', 'status');
-  const output = element('pre');
-  output.dataset.gitOutput = '';
-  panel.append(element('summary', 'Arquivos no commit atual'), form, status, output);
+  const output = element('ul', undefined, 'committed-path-list');
+  const fileStatus = element('p');
+  fileStatus.setAttribute('role', 'status');
+  const fileText = element('pre', undefined, 'committed-file-text');
+  fileText.hidden = true;
+  fileText.tabIndex = 0;
+  fileText.setAttribute('aria-label', 'Conteúdo do arquivo');
+  panel.append(element('summary', 'Arquivos no commit atual'), form, status, output, fileStatus, fileText);
   target.append(panel);
 
   let sequence = 0;
+  let fileSequence = 0;
   let query = '';
   let page;
+  const pathLabel = path => /[\u0000-\u001f\u007f]/.test(path) ? JSON.stringify(path) : path;
+  function resetFile() {
+    fileSequence += 1;
+    fileStatus.textContent = '';
+    fileText.textContent = '';
+    fileText.hidden = true;
+  }
+  async function showFile(path, revision) {
+    resetFile();
+    const id = fileSequence;
+    const label = pathLabel(path);
+    fileStatus.textContent = 'Lendo ' + label + '…';
+    const params = new URLSearchParams({ view: 'committed-text', project: projectSelect.value, path, revision });
+    try {
+      const result = await request('?' + params);
+      if (fileSequence !== id) return;
+      fileStatus.textContent = label + ' · ' + result.bytes + ' bytes';
+      fileText.textContent = result.text || '(arquivo vazio)';
+      fileText.hidden = false;
+    } catch (error) {
+      if (fileSequence === id) fileStatus.textContent = label + ' · ' + error.message;
+    }
+  }
   projectSelect.addEventListener('change', () => {
     sequence += 1;
     page = undefined;
     next.hidden = true;
     output.textContent = '';
+    resetFile();
     status.textContent = 'Consulte os arquivos do projeto selecionado.';
   });
   async function loadPaths(useNext) {
@@ -429,6 +459,8 @@ function prepareCommittedPaths(target, projectSelect) {
       return;
     }
     const id = ++sequence;
+    resetFile();
+    output.replaceChildren();
     const params = new URLSearchParams({ view: 'committed-paths', project, q: query });
     const offset = useNext ? page.next : 0;
     if (useNext) {
@@ -444,7 +476,14 @@ function prepareCommittedPaths(target, projectSelect) {
       status.textContent = result.paths.length
         ? (offset + 1) + '–' + (offset + result.paths.length) + ' de ' + result.total + ' caminhos'
         : 'Nenhum caminho encontrado.';
-      output.textContent = result.paths.map(path => /[\u0000-\u001f\u007f]/.test(path) ? JSON.stringify(path) : path).join('\n');
+      output.replaceChildren(...result.paths.map(path => {
+        const item = element('li');
+        const button = element('button', pathLabel(path), 'button button-quiet');
+        button.type = 'button';
+        button.addEventListener('click', () => void showFile(path, result.revision));
+        item.append(button);
+        return item;
+      }));
       next.hidden = result.next == null;
     } catch (error) {
       if (sequence !== id) return;
