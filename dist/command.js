@@ -1436,6 +1436,16 @@ function applyDisplay(values) {
 function displaySnapshot() {
   return { ...Object.fromEntries(displayControls.map(([key, control]) => [key, control.value])), widgets: displayWidgets };
 }
+function validDisplaySnapshot(values) {
+  return values && displayControls.every(([key, control]) => validDisplayValue(control, values[key]))
+    && (!Object.hasOwn(values, 'widgets') || normalizeWidgets(values.widgets));
+}
+function loadDisplaySnapshot(values, message) {
+  applyDisplay(values);
+  applyWidgetSettings(values);
+  saveDisplay(message);
+  renderMetrics();
+}
 function saveDisplay(message = 'Preferências salvas neste navegador.') {
   applyDisplay(displaySnapshot());
   try {
@@ -1459,10 +1469,7 @@ try {
 }
 for (const [, control] of displayControls) control.addEventListener('change', () => saveDisplay());
 byId('display-reset').addEventListener('click', () => {
-  applyDisplay(displayDefaults);
-  applyWidgetSettings();
-  saveDisplay('Preferências padrão restauradas.');
-  renderMetrics();
+  loadDisplaySnapshot(displayDefaults, 'Preferências padrão restauradas.');
 });
 byId('display-export').addEventListener('click', () => {
   const file = new Blob([JSON.stringify({ version: 1, ...displaySnapshot() }, null, 2)], { type: 'application/json' });
@@ -1481,17 +1488,65 @@ byId('display-import').addEventListener('change', async event => {
   try {
     if (file.size > 4096) throw new Error();
     const values = JSON.parse(await file.text());
-    if (values?.version !== 1 || !displayControls.every(([key, control]) => validDisplayValue(control, values[key]))
-      || ('widgets' in values && !normalizeWidgets(values.widgets))) {
-      throw new Error();
-    }
-    applyDisplay(values);
-    applyWidgetSettings(values);
-    saveDisplay('Preferências importadas.');
-    renderMetrics();
+    if (values?.version !== 1 || !validDisplaySnapshot(values)) throw new Error();
+    loadDisplaySnapshot(values, 'Preferências importadas.');
   } catch {
     setText('display-feedback', 'Arquivo inválido. Selecione um JSON exportado pelas preferências.');
   }
+});
+const presetKey = 'projeto-all.display-presets';
+const presetSelect = byId('display-preset');
+let presets = [];
+try {
+  const stored = JSON.parse(localStorage.getItem(presetKey));
+  if (Array.isArray(stored)) {
+    presets = stored.filter(preset => typeof preset?.name === 'string' && preset.name.trim()
+      && preset.name.length <= 60 && validDisplaySnapshot(preset.values)).slice(0, 20);
+  }
+} catch {}
+function updatePresetControls() {
+  const disabled = !presetSelect.value;
+  byId('display-preset-apply').disabled = disabled;
+  byId('display-preset-remove').disabled = disabled;
+}
+function renderPresets(selected = '') {
+  presetSelect.replaceChildren(new Option(presets.length ? 'Selecione um preset' : 'Nenhum preset salvo', ''),
+    ...presets.map(({ name }) => new Option(name, name)));
+  presetSelect.value = selected;
+  updatePresetControls();
+}
+function savePresets(next, message, selected) {
+  try {
+    localStorage.setItem(presetKey, JSON.stringify(next));
+  } catch {
+    setText('display-feedback', 'O navegador impediu o armazenamento do preset.');
+    return false;
+  }
+  presets = next;
+  renderPresets(selected);
+  setText('display-feedback', message);
+  return true;
+}
+renderPresets();
+presetSelect.addEventListener('change', updatePresetControls);
+byId('display-preset-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const input = byId('display-preset-name');
+  const name = input.value.trim();
+  if (!name || name.length > 60) return setText('display-feedback', 'Informe um nome de até 60 caracteres.');
+  if (presets.some(preset => preset.name.toLocaleLowerCase() === name.toLocaleLowerCase())) {
+    return setText('display-feedback', 'Já existe um preset com esse nome.');
+  }
+  if (presets.length >= 20) return setText('display-feedback', 'Exclua um preset antes de salvar outro. O limite é 20.');
+  const values = structuredClone(displaySnapshot());
+  if (savePresets([...presets, { name, values }], 'Preset salvo.', name)) input.value = '';
+});
+byId('display-preset-apply').addEventListener('click', () => {
+  const preset = presets.find(item => item.name === presetSelect.value);
+  if (preset) loadDisplaySnapshot(preset.values, 'Preset aplicado.');
+});
+byId('display-preset-remove').addEventListener('click', () => {
+  if (presetSelect.value) savePresets(presets.filter(item => item.name !== presetSelect.value), 'Preset excluído.');
 });
 try {
   if (localStorage.getItem('projeto-all.task-view') === 'board') byId('task-view').value = 'board';

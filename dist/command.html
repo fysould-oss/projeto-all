@@ -155,6 +155,18 @@
             <legend>Widgets do resumo operacional</legend>
             <div id="widget-settings-list"></div>
           </fieldset>
+          <fieldset class="widget-settings">
+            <legend>Presets de visualização</legend>
+            <form class="inspection-controls" id="display-preset-form">
+              <label>Nome do preset <input id="display-preset-name" required maxlength="60"></label>
+              <button type="submit" class="button">Salvar visualização atual</button>
+            </form>
+            <div class="inspection-controls">
+              <label>Preset salvo <select id="display-preset"></select></label>
+              <button type="button" class="button" id="display-preset-apply" disabled>Aplicar</button>
+              <button type="button" class="button button-quiet" id="display-preset-remove" disabled>Excluir preset</button>
+            </div>
+          </fieldset>
           <p class="form-feedback" id="display-feedback" role="status"></p>
         </details>
         <section class="panel forms-panel" id="actions" aria-labelledby="actions-title"><header class="panel-header"><div><p class="eyebrow">AÇÕES LOCAIS</p><h2 id="actions-title">Registrar trabalho</h2></div><span class="panel-meta">persistido no serviço local</span></header><div class="forms-grid">

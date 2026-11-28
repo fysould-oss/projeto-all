@@ -794,6 +794,13 @@ section[id] { scroll-margin-top: 6rem; }
 :root[data-font-size="large"] { font-size: 112.5%; }
 :root[data-font-size="extra-large"] { font-size: 125%; }
 .display-settings input[type="file"] { max-inline-size: min(100%, 17rem); }
+#display-preset-name {
+  background: var(--bg-deep);
+  border: 1px solid var(--line);
+  border-radius: .35rem;
+  padding: .3rem .5rem;
+  max-inline-size: 100%;
+}
 :root[data-density="compact"] .panel-header,
 :root[data-density="compact"] th,
 :root[data-density="compact"] td { padding-block: 0.45rem; }
