@@ -3,7 +3,7 @@ import { inspectProject, resources } from './inspect.mjs';
 import { draftPlan } from './plan.mjs';
 import { createChecks } from './checks.mjs';
 import { listFiles } from './index.mjs';
-import { githubPullRequests, listBranches, listRemotes } from './push.mjs';
+import { githubPullRequests, listBranches, listRemotes, listTagsAndStashes } from './push.mjs';
 import { objectiveGraph } from './graph.mjs';
 import { readCoordinatorJobs } from './coordinator-status.mjs';
 import { prepareCoordinatorDispatch } from './coordinator-dispatch.mjs';
@@ -239,7 +239,7 @@ export function createCommandApi(file, getActivity, {
       send(response, headers, 200, graph);
       return;
     }
-    if (['files', 'remotes', 'branches', 'github-pulls'].includes(kind)) {
+    if (['files', 'remotes', 'branches', 'saved-refs', 'github-pulls'].includes(kind)) {
       const project = snapshot.projects.find(entry => entry.id === url.searchParams.get('project'));
       if (!project) {
         send(response, headers, 404, { error: 'Projeto não encontrado.' });
@@ -248,6 +248,7 @@ export function createCommandApi(file, getActivity, {
       try {
         const result = kind === 'github-pulls' ? await githubPullRequests(project)
           : kind === 'branches' ? await listBranches(project)
+          : kind === 'saved-refs' ? await listTagsAndStashes(project)
           : kind === 'files' ? { files: await listFiles(project) } : { remotes: await listRemotes(project) };
         send(response, headers, 200, result);
       } catch (error) {

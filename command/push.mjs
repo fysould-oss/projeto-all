@@ -107,6 +107,29 @@ export async function listBranches(project) {
   return { current, detachedSha, truncated: rows.length > 100, branches };
 }
 
+export async function listTagsAndStashes(project) {
+  const cwd = await repository(project);
+  const [tagOutput, stashOutput] = await Promise.all([
+    git(cwd, ['for-each-ref', '--sort=refname', '--count=101',
+      '--format=%(refname:lstrip=2)%00%(objecttype)%00%(objectname:short)%00%(*objectname:short)', 'refs/tags/']),
+    git(cwd, ['stash', 'list', '-n', '101', '--format=%gd%x00%h%x00%cI']),
+  ]);
+  const tagRows = tagOutput.split(/\r?\n/).filter(Boolean);
+  const stashRows = stashOutput.split(/\r?\n/).filter(Boolean);
+  return {
+    tags: tagRows.slice(0, 100).map(row => {
+      const [name, type, sha, target] = row.split('\0');
+      return { name, type, sha, target };
+    }),
+    stashes: stashRows.slice(0, 100).map(row => {
+      const [ref, sha, created] = row.split('\0');
+      return { ref, sha, created };
+    }),
+    moreTags: tagRows.length > 100,
+    moreStashes: stashRows.length > 100,
+  };
+}
+
 export function githubRepository(remote) {
   const match = /^(?:https:\/\/github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([a-z\d-]+)\/([a-z\d_.-]+)\/?$/i.exec(remote);
   if (!match) return null;

@@ -231,7 +231,7 @@ function render() {
   setText('tasks-count', state.tasks.filter(task => !['done', 'cancelled'].includes(task.state)).length + ' abertas');
   setText('coordinator-status', 'Rascunhos de plano e acompanhamento');
   prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff completo'], ['staged', 'Ver diff preparado'],
-    ['branches', 'Listar branches'], ['github-pulls', 'Consultar PRs no GitHub']]);
+    ['branches', 'Listar branches'], ['saved-refs', 'Listar tags e stashes'], ['github-pulls', 'Consultar PRs no GitHub']]);
   renderApprovals();
   renderPreviewPanel();
   renderGraphPanel();
@@ -1310,6 +1310,16 @@ document.addEventListener('click', async event => {
       });
       output.textContent = [heading, ...(branches.length ? branches : ['Nenhuma branch com commit local.']),
         ...(result.truncated ? ['Mostrando as primeiras 100 branches.'] : [])].join('\n');
+    } else if (button.dataset.gitView === 'saved-refs') {
+      const tags = result.tags.map(({ name, type, sha, target }) =>
+        name + ' · ' + sha + (type === 'tag' ? ' · anotada' : ' · ' + type)
+          + (target ? ' · aponta para ' + target : ''));
+      const stashes = result.stashes.map(({ ref, sha, created }) =>
+        ref + ' · ' + sha + ' · ' + new Date(created).toLocaleString('pt-BR'));
+      output.textContent = ['Tags locais', ...(tags.length ? tags : ['Nenhuma tag.']),
+        ...(result.moreTags ? ['Mostrando as primeiras 100 tags.'] : []),
+        '', 'Stashes locais', ...(stashes.length ? stashes : ['Nenhum stash.']),
+        ...(result.moreStashes ? ['Mostrando os 100 stashes mais recentes.'] : [])].join('\n');
     } else if (button.dataset.gitView === 'github-pulls') {
       const [repository] = result.repositories;
       if (!repository) {

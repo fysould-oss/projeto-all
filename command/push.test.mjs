@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { preparePush, executePush, githubRepository, listBranches, summarizeGitHubChecks, summarizeGitHubStatuses,
+import { preparePush, executePush, githubRepository, listBranches, listTagsAndStashes, summarizeGitHubChecks, summarizeGitHubStatuses,
   summarizeGitHubReviews, summarizeGitHubWorkflows } from './push.mjs';
 
 test('projects workflow runs for the exact PR commit and rejects invalid run data', () => {
@@ -101,6 +101,27 @@ async function fixture(t) {
   await run(root, ['remote', 'add', 'origin', bare]);
   return { root, bare };
 }
+test('lists tag types and stash metadata without stash messages or contents', async t => {
+  const { root } = await fixture(t);
+  assert.deepEqual(await listTagsAndStashes(root), { tags: [], stashes: [], moreTags: false, moreStashes: false });
+  await run(root, ['tag', 'v1']);
+  await run(root, ['tag', '-a', 'release/v2', '-m', 'release annotation']);
+  await writeFile(join(root, 'one.txt'), 'first-edited\n');
+  await run(root, ['stash', 'push', '-m', 'private stash message']);
+  await writeFile(join(root, 'one.txt'), 'second-edited\n');
+  await run(root, ['stash', 'push', '-m', 'second private message']);
+  const result = await listTagsAndStashes(root);
+  const [annotated, lightweight] = result.tags;
+  assert.equal(annotated.name, 'release/v2');
+  assert.equal(annotated.type, 'tag');
+  assert.equal(annotated.target, lightweight.sha);
+  assert.equal(lightweight.name, 'v1');
+  assert.equal(lightweight.type, 'commit');
+  assert.deepEqual(result.stashes.map(stash => stash.ref), ['stash@{0}', 'stash@{1}']);
+  assert.ok(result.stashes.every(stash => Number.isFinite(Date.parse(stash.created)) && /^[a-f0-9]{7,}$/.test(stash.sha)));
+  assert.doesNotMatch(JSON.stringify(result), /private|edited|annotation/);
+});
+
 test('lists active, untracked, upstream and detached branch state from Git', async t => {
   const { root } = await fixture(t);
   await run(root, ['push', '-u', 'origin', 'main']);
