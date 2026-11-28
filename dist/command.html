@@ -21,8 +21,11 @@
 
     <div class="workspace">
       <aside class="sidebar" aria-label="Navegação do centro de comando">
-        <p class="sidebar-label">Navegação</p>
-        <nav class="main-nav">
+        <div class="sidebar-heading">
+          <p class="sidebar-label">Navegação</p>
+          <button type="button" class="button button-quiet" id="sidebar-toggle" aria-pressed="false" aria-controls="command-navigation" title="Recolher barra lateral" aria-label="Barra lateral compacta">«</button>
+        </div>
+        <nav class="main-nav" id="command-navigation">
           <a class="nav-item is-active" href="#visao" data-section="visao"><span class="nav-icon">◈</span>Visão</a>
           <a class="nav-item" href="#projetos" data-section="projetos"><span class="nav-icon">▦</span>Projetos</a>
           <a class="nav-item" href="#coordenador" data-section="coordenador"><span class="nav-icon">◎</span>Coordenador</a>
@@ -147,6 +150,7 @@
             <label>Tema <select id="theme"><option value="dark">Escuro</option><option value="light">Claro</option><option value="auto">Automático</option></select></label>
             <label>Densidade <select id="density"><option value="comfortable">Confortável</option><option value="compact">Compacta</option></select></label>
             <label>Texto <select id="fontSize"><option value="standard">Padrão</option><option value="large">Grande</option><option value="extra-large">Extragrande</option></select></label>
+            <label>Largura da barra lateral <select id="sidebarWidth"><option value="standard">Padrão</option><option value="narrow">Estreita</option><option value="wide">Larga</option></select></label>
             <button type="button" class="button" id="display-export">Exportar</button>
             <label>Importar preferências <input id="display-import" type="file" accept=".json,application/json"></label>
             <button type="button" class="button" id="display-reset">Restaurar padrão</button>

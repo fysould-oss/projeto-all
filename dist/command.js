@@ -860,7 +860,16 @@ function renderObservability(resources) {
     panel.innerHTML = '<header class="panel-header"><div><p class="eyebrow">TELEMETRIA</p><h2>Observabilidade</h2></div><span class="panel-meta">snapshot local</span></header><div class="observability-grid"><div class="observation-metric"><div><span>CPU</span><strong id="obs-cpu-label">Indisponível</strong></div><div class="observation-bar" role="progressbar" aria-label="Uso de CPU"><i id="obs-cpu-bar"></i></div></div><div class="observation-metric"><div><span>Memória</span><strong id="obs-memory-label">Indisponível</strong></div><div class="observation-bar" role="progressbar" aria-label="Uso de memória"><i id="obs-memory-bar"></i></div></div><dl class="observation-details"><div><dt>Checks ativos</dt><dd id="obs-checks">Indisponível</dd></div><div><dt>Núcleos</dt><dd id="obs-cores">Indisponível</dd></div><div><dt>RSS do servidor</dt><dd id="obs-rss">Indisponível</dd></div><div><dt>Uptime</dt><dd id="obs-uptime">Indisponível</dd></div></dl></div>';
     byId('visao')?.after(panel);
     const nav = document.querySelector('.main-nav');
-    if (nav && !nav.querySelector('[data-section="observabilidade"]')) { const link = element('a', 'Observabilidade', 'nav-item'); link.href = '#observabilidade'; link.dataset.section = 'observabilidade'; nav.append(link); }
+    if (nav && !nav.querySelector('[data-section="observabilidade"]')) {
+      const link = element('a', undefined, 'nav-item');
+      link.href = '#observabilidade';
+      link.dataset.section = 'observabilidade';
+      const icon = element('span', '⌁', 'nav-icon');
+      link.append(icon, 'Observabilidade');
+      prepareNavLink(link);
+      nav.append(link);
+      highlightSection();
+    }
   }
   const formatBytes = bytes => Number.isFinite(bytes) ? (bytes / 2 ** 30).toLocaleString('pt-BR', { maximumFractionDigits: 1 }) + ' GiB' : 'Indisponível';
   const formatUptime = seconds => Number.isFinite(seconds) ? Math.floor(seconds / 3600) + 'h ' + Math.floor(seconds / 60) % 60 + 'min' : 'Indisponível';
@@ -1360,6 +1369,28 @@ setInterval(() => {
   if (!document.hidden && checksProject.value && !checksPending) refreshChecks();
 }, 3000);
 window.addEventListener('hashchange', highlightSection);
+function prepareNavLink(link) {
+  const icon = link.querySelector('.nav-icon');
+  icon.setAttribute('aria-hidden', 'true');
+  const title = [...link.childNodes].filter(node => node.nodeType === Node.TEXT_NODE)
+    .map(node => node.textContent.trim()).join(' ').trim();
+  link.title = title;
+  link.replaceChildren(icon, element('span', title, 'nav-label'));
+}
+document.querySelectorAll('#command-navigation .nav-item').forEach(prepareNavLink);
+const sidebarToggle = byId('sidebar-toggle');
+function applySidebarCompact(compact) {
+  document.documentElement.dataset.sidebarCompact = String(compact);
+  sidebarToggle.setAttribute('aria-pressed', String(compact));
+  sidebarToggle.title = compact ? 'Expandir barra lateral' : 'Recolher barra lateral';
+  sidebarToggle.textContent = compact ? '»' : '«';
+}
+try { applySidebarCompact(localStorage.getItem('projeto-all.sidebar-compact') === 'true'); } catch {}
+sidebarToggle.addEventListener('click', () => {
+  const compact = sidebarToggle.getAttribute('aria-pressed') !== 'true';
+  applySidebarCompact(compact);
+  try { localStorage.setItem('projeto-all.sidebar-compact', String(compact)); } catch {}
+});
 highlightSection();
 configureCoordinatorJobsPolling();
 const displayKey = 'projeto-all.display';
@@ -1424,7 +1455,7 @@ function applyWidgetSettings(values) {
     .map(({ id, visible, wide }) => ({ id, visible, wide }));
   renderWidgetSettings();
 }
-const displayControls = ['theme', 'density', 'fontSize'].map(key => [key, byId(key)]);
+const displayControls = ['theme', 'density', 'fontSize', 'sidebarWidth'].map(key => [key, byId(key)]);
 const displayDefaults = Object.fromEntries(displayControls.map(([key, control]) => [key, control.value]));
 const validDisplayValue = (control, value) => Array.from(control.options).some(option => option.value === value);
 function applyDisplay(values) {
@@ -1437,7 +1468,8 @@ function displaySnapshot() {
   return { ...Object.fromEntries(displayControls.map(([key, control]) => [key, control.value])), widgets: displayWidgets };
 }
 function validDisplaySnapshot(values) {
-  return values && displayControls.every(([key, control]) => validDisplayValue(control, values[key]))
+  return values && displayControls.every(([key, control]) =>
+    (key === 'sidebarWidth' && !Object.hasOwn(values, key)) || validDisplayValue(control, values[key]))
     && (!Object.hasOwn(values, 'widgets') || normalizeWidgets(values.widgets));
 }
 function loadDisplaySnapshot(values, message) {
