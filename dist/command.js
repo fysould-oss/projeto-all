@@ -12,7 +12,8 @@ const modelTiers = { economy: 'econômico', balanced: 'equilibrado', advanced: '
 const checkLabels = { running: 'Em execução', passed: 'Aprovada', failed: 'Falhou', cancelled: 'Cancelada', timed_out: 'Tempo limite', interrupted: 'Interrompida' };
 const actionLabels = {
   'project.create': 'Projeto cadastrado', 'objective.create': 'Objetivo criado',
-  'task.create': 'Tarefa criada', 'task.state': 'Estado da tarefa atualizado', 'task.schedule': 'Agendamento atualizado',
+  'objective.pause': 'Objetivo pausado', 'objective.resume': 'Objetivo retomado', 'objective.cancel': 'Objetivo cancelado',
+  'task.create': 'Tarefa criada', 'task.state': 'Estado da tarefa atualizado', 'task.schedule': 'Agendamento atualizado', 'objective.control': 'Controle do objetivo atualizado',
   'objective.plan': 'Tarefas do plano registradas', 'approval.request': 'Aprovação solicitada', 'approval.requestPush': 'Aprovação de push solicitada',
   'approval.approve': 'Aprovação encaminhada', 'approval.reject': 'Aprovação rejeitada',
   'approval.edit': 'Aprovação editada', 'git.stage': 'Caminho preparado', 'git.unstage': 'Caminho retirado do índice',
@@ -97,7 +98,23 @@ function render() {
   fill('coordinator-detail', state.objectives, objective => {
     const tasks = state.tasks.filter(task => task.objectiveId === objective.id);
     const card = row(objective.title, [getProject(objective.projectId), tasks.filter(task => task.state === 'done').length + '/' + tasks.length + ' concluídas'].join(' · '));
-    if (!tasks.length) {
+    const status = objective.status || 'active';
+    card.append(element('p', status === 'active' ? 'Ativo' : status === 'paused' ? 'Pausado' : 'Cancelado', 'objective-status'));
+    const controls = element('div', undefined, 'objective-controls');
+    for (const [action, label, visible] of [
+      ['pause', 'Pausar novas execuções', status === 'active'],
+      ['resume', 'Retomar', status === 'paused'],
+      ['cancel', 'Cancelar objetivo', status !== 'cancelled'],
+    ]) {
+      if (!visible) continue;
+      const button = element('button', label, 'button button-quiet');
+      button.type = 'button';
+      button.dataset.objectiveControl = action;
+      button.dataset.objectiveId = objective.id;
+      controls.append(button);
+    }
+    card.append(controls);
+    if (!tasks.length && status !== 'cancelled') {
       const button = element('button', 'Gerar rascunho', 'button button-quiet');
       button.type = 'button';
       button.dataset.plan = objective.id;
@@ -113,7 +130,7 @@ function render() {
     options(select, state.projects, project => project.name, 'Selecione um projeto');
   }
   for (const select of document.querySelectorAll('select[name=objectiveId]')) {
-    options(select, state.objectives, objective => objective.title, 'Selecione um objetivo');
+    options(select, state.objectives.filter(objective => objective.status !== 'cancelled'), objective => objective.title, 'Selecione um objetivo');
   }
   activeDependencies();
 }
@@ -121,6 +138,7 @@ function render() {
 function renderTasks() {
   const getObjective = id => state.objectives.find(entry => entry.id === id)?.title;
   function taskRow(task) {
+    const objective = state.objectives.find(item => item.id === task.objectiveId);
     const item = row(task.title, [getObjective(task.objectiveId), planRoles[task.role], modelTiers[task.modelTier] && 'Perfil ' + modelTiers[task.modelTier]].filter(Boolean).join(' · '));
     item.id = 'task-' + task.id;
     if (task.dependencies.length) {
@@ -140,7 +158,10 @@ function renderTasks() {
     for (const [value, title] of Object.entries(labels)) select.add(new Option(title, value));
     select.value = task.state;
     const check = task.check;
-    select.disabled = check?.status === 'running';
+    select.disabled = check?.status === 'running' || objective?.status === 'cancelled';
+    if (objective?.status === 'paused' && task.state !== 'running') {
+      select.querySelector('option[value="running"]').disabled = true;
+    }
     item.append(select);
     if (check) item.append(checkInfo(check));
     const canSchedule = ['pending', 'failed'].includes(task.state);
@@ -149,7 +170,7 @@ function renderTasks() {
     const script = element('select'); script.dataset.taskCheckScript = task.id; script.setAttribute('aria-label', 'Verificação de ' + task.title);
     script.append(new Option('Verificar…', ''), ...['lint', 'test', 'build', 'typecheck'].map(name => new Option(name, name)));
     const run = element('button', 'Executar verificação', 'button button-quiet'); run.type = 'button'; run.dataset.taskCheck = task.id; run.disabled = true;
-    const runnable = task.dependencies.every(id => state.tasks.find(item => item.id === id)?.state === 'done');
+    const runnable = objective?.status !== 'paused' && task.dependencies.every(id => state.tasks.find(item => item.id === id)?.state === 'done');
     const schedule = element('button', task.scheduledScript ? 'Limpar agendamento' : 'Agendar', 'button button-quiet'); schedule.type = 'button'; schedule.dataset.taskSchedule = task.id; schedule.dataset.taskScheduled = task.scheduledScript || '';
     schedule.disabled = !task.scheduledScript;
     script.addEventListener('change', () => { run.disabled = !script.value || !runnable; schedule.disabled = !task.scheduledScript && !script.value; });
@@ -362,6 +383,7 @@ async function loadGraph(objective) {
 
 function graphStatus(node) {
   if (node.ready) return 'Pronta';
+  if (node.state === 'pending' && node.paused) return 'Objetivo pausado';
   if (node.state === 'pending' && node.layer === null) return 'Dependência não resolvida';
   if (node.state === 'pending' && node.waitingOn.length) return 'Aguardando dependência';
   return labels[node.state] || 'Pendente';
@@ -760,6 +782,15 @@ document.addEventListener('click', event => {
 });
 
 document.addEventListener('click', async event => {
+  const control = event.target.closest('[data-objective-control]');
+  if (control) {
+    const action = control.dataset.objectiveControl;
+    if (action === 'cancel' && !window.confirm('Cancelar este objetivo e suas tarefas inacabadas?')) return;
+    control.disabled = true;
+    await mutate('objective.control', { id: control.dataset.objectiveId, control: action });
+    control.disabled = false;
+    return;
+  }
   const button = event.target.closest('[data-task-check]');
   const schedule = event.target.closest('[data-task-schedule]');
   if (schedule) {

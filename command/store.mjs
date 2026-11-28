@@ -96,7 +96,7 @@ export async function createStore(path) {
   }
   const interruptedChecks = state.tasks.filter(task => task.check?.status === 'running');
   for (const task of interruptedChecks) {
-    task.state = 'failed';
+    if (task.state !== 'cancelled') task.state = 'failed';
     task.updatedAt = now();
     task.check.status = 'interrupted';
     audit(state, 'task.check.interrupted', {}, task.id);
@@ -182,6 +182,10 @@ export async function createStore(path) {
       throw new Error('Conclua as dependências antes de iniciar esta tarefa.');
     }
     const objective = next.objectives.find(item => item.id === task.objectiveId);
+    if (objective?.status === 'paused' || objective?.status === 'cancelled') {
+      if (scheduled) return null;
+      throw new Error('Retome o objetivo para iniciar verificações.');
+    }
     const project = next.projects.find(item => item.id === objective?.projectId);
     if (!project) throw new Error('Projeto não encontrado.');
     const run = await checks.start(project, data.script);
@@ -202,10 +206,11 @@ export async function createStore(path) {
     const next = clone(state);
     const task = next.tasks.find(item => item.id === data?.id);
     if (!task || !['pending', 'failed'].includes(task.state)) throw new Error('Selecione uma tarefa pendente ou com falha.');
+    const objective = next.objectives.find(item => item.id === task.objectiveId);
+    if (!objective || objective.status === 'cancelled') throw new Error('O objetivo foi cancelado.');
     if (data.script === null) {
       delete task.scheduledScript;
     } else {
-      const objective = next.objectives.find(item => item.id === task.objectiveId);
       const project = next.projects.find(item => item.id === objective?.projectId);
       if (!project || !(await checks.available(project)).includes(data.script)) {
         throw new Error('O script não está configurado no projeto.');
@@ -220,6 +225,8 @@ export async function createStore(path) {
     const next = clone(state);
     const task = next.tasks.find(item => item.id === id);
     if (task?.scheduledScript !== script || !['pending', 'failed'].includes(task.state)) return;
+    const objective = next.objectives.find(item => item.id === task.objectiveId);
+    if (objective?.status === 'paused' || objective?.status === 'cancelled') return;
     if (task.dependencies.some(dependency => next.tasks.find(item => item.id === dependency)?.state !== 'done')) return;
     delete task.scheduledScript;
     task.state = 'failed';
@@ -235,9 +242,34 @@ export async function createStore(path) {
     if (task?.check?.id !== run.id || task.check.status !== 'running') return;
     task.check.status = run.status;
     task.check.durationMs = run.durationMs;
-    task.state = run.status === 'passed' ? 'done' : run.status === 'cancelled' ? 'cancelled' : 'failed';
+    if (task.state !== 'cancelled') {
+      task.state = run.status === 'passed' ? 'done' : run.status === 'cancelled' ? 'cancelled' : 'failed';
+    }
     task.updatedAt = now();
     await save(next, 'task.check.' + run.status, {}, task);
+  }
+
+  async function controlObjective(data) {
+    const next = clone(state);
+    const objective = next.objectives.find(item => item.id === data?.id);
+    if (!objective) throw new Error('Objetivo não encontrado.');
+    const { control } = data;
+    if (!['pause', 'resume', 'cancel'].includes(control)) throw new Error('Controle inválido.');
+    if (objective.status === 'cancelled') throw new Error('O objetivo foi cancelado.');
+    objective.status = { pause: 'paused', resume: 'active', cancel: 'cancelled' }[control];
+    objective.updatedAt = now();
+    const runIds = [];
+    if (control === 'cancel') {
+      for (const task of next.tasks.filter(item => item.objectiveId === objective.id)) {
+        if (task.check?.status === 'running') runIds.push(task.check.id);
+        if (task.state === 'done' || task.state === 'cancelled') continue;
+        task.state = 'cancelled';
+        task.updatedAt = objective.updatedAt;
+        delete task.scheduledScript;
+      }
+    }
+    await save(next, 'objective.' + control, {}, objective);
+    return { project: next.projects.find(item => item.id === objective.projectId), runIds };
   }
 
   async function mutate(action, data = {}) {
@@ -273,6 +305,7 @@ export async function createStore(path) {
     } else if (action === 'objective.plan') {
       const objective = next.objectives.find(item => item.id === data.id);
       if (!objective) throw new Error('Objetivo não encontrado.');
+      if (objective.status === 'cancelled') throw new Error('O objetivo foi cancelado.');
       if (next.tasks.some(task => task.objectiveId === objective.id)) {
         throw new Error('Este objetivo já tem tarefas.');
       }
@@ -287,7 +320,9 @@ export async function createStore(path) {
       result = objective;
     } else if (action === 'task.create') {
       const objectiveId = id(data.objectiveId);
-      if (!objectiveId || !next.objectives.some(item => item.id === objectiveId)) throw new Error('Objetivo não encontrado.');
+      const objective = next.objectives.find(item => item.id === objectiveId);
+      if (!objective) throw new Error('Objetivo não encontrado.');
+      if (objective.status === 'cancelled') throw new Error('O objetivo foi cancelado.');
       const dependencies = data.dependencies === undefined ? [] : data.dependencies;
       if (!Array.isArray(dependencies) || dependencies.some(dep => !id(dep))) throw new TypeError('Selecione tarefas válidas como dependências.');
       if (new Set(dependencies).size !== dependencies.length) throw new TypeError('Selecione cada dependência uma única vez.');
@@ -298,9 +333,12 @@ export async function createStore(path) {
       const taskId = id(data.id);
       const task = next.tasks.find(item => item.id === taskId);
       if (!task) throw new Error('Tarefa não encontrada.');
+      const objective = next.objectives.find(item => item.id === task.objectiveId);
+      if (objective?.status === 'cancelled') throw new Error('O objetivo foi cancelado.');
       if (task.check?.status === 'running') throw new Error('Interrompa a execução na seção Qualidade antes de alterar o estado.');
       if (!STATES.has(data.state)) throw new TypeError('Estado de tarefa inválido.');
       if (data.state === 'running') {
+        if (objective?.status === 'paused') throw new Error('Retome o objetivo antes de iniciar tarefas.');
         if (task.dependencies.some(dependency => next.tasks.find(item => item.id === dependency)?.state !== 'done')) {
           throw new Error('Conclua as dependências antes de iniciar esta tarefa.');
         }
@@ -333,5 +371,6 @@ export async function createStore(path) {
     finishTaskCheck(taskId, run) { return serialize(() => finishTaskCheck(taskId, run)); },
     scheduleTask(data, checks) { return serialize(() => scheduleTask(data, checks)); },
     failScheduledTask(id, script) { return serialize(() => failScheduledTask(id, script)); },
+    controlObjective(data) { return serialize(() => controlObjective(data)); },
   };
 }

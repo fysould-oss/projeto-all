@@ -28,6 +28,8 @@ Também é possível executar um desses scripts a partir de uma tarefa pendente 
 
 Use **Agendar** para escolher antecipadamente o script de uma tarefa. O servidor guarda a escolha, espera as dependências e inicia a execução quando houver uma vaga. O limite é de duas verificações simultâneas, compartilhado com Qualidade. A fila é retomada ao iniciar o servidor. Use **Limpar agendamento** para remover uma tarefa ainda na fila; execuções interrompidas no reinício ficam registradas como falha, sem nova execução automática.
 
+No Coordenador, **Pausar novas execuções** mantém a fila do objetivo e deixa as verificações já iniciadas terminarem. **Retomar** volta a liberar tarefas elegíveis. **Cancelar objetivo** é definitivo, interrompe suas verificações ativas, remove agendamentos e cancela as tarefas inacabadas. Tarefas concluídas continuam no histórico.
+
 Em Previews, selecione um projeto e salve o endereço de uma aplicação já em execução no mesmo computador do navegador. Use HTTP com `localhost` ou `127.0.0.1` e uma porta entre 1024 e 65535. A central guarda um endereço por projeto e só abre a aplicação quando você inicia o preview. Os controles ajustam as dimensões do quadro para desktop, tablet, celular ou tamanho personalizado. É possível girar, recarregar, programar recarga enquanto a aba está visível e parar. A abertura em nova aba atende aplicações que bloqueiam incorporação por CSP ou X-Frame-Options.
 
 ## Arquitetura

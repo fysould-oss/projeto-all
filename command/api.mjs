@@ -63,9 +63,11 @@ export function createCommandApi(file, getActivity) {
     do {
       pendingDrain = false;
       while (!closed && checks.availableSlots()) {
-        const { tasks } = database.snapshot();
+        const { tasks, objectives } = database.snapshot();
         const byId = new Map(tasks.map(task => [task.id, task]));
+        const active = new Set(objectives.filter(objective => !objective.status || objective.status === 'active').map(objective => objective.id));
         const task = tasks.find(item => item.scheduledScript && ['pending', 'failed'].includes(item.state)
+          && active.has(item.objectiveId)
           && item.dependencies.every(id => byId.get(id)?.state === 'done'));
         if (!task) break;
         const script = task.scheduledScript;
@@ -109,6 +111,13 @@ export function createCommandApi(file, getActivity) {
       }
       try {
         const { action, data } = await readAction(request);
+        if (action === 'objective.control') {
+          const { project, runIds } = await database.controlObjective(data);
+          await Promise.all(runIds.map(id => checks.cancel(project, id)));
+          send(response, headers, 200, database.snapshot());
+          scheduleDrain();
+          return;
+        }
         if (action === 'task.schedule') {
           await database.scheduleTask(data, checks);
           send(response, headers, 200, database.snapshot());

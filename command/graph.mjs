@@ -6,6 +6,7 @@ export function objectiveGraph(snapshot, objectiveId) {
   if (!objective) return null;
 
   const allTasks = new Map(snapshot.tasks.map(task => [task.id, task]));
+  const objectives = new Map(snapshot.objectives.map(item => [item.id, item]));
   const selected = new Map();
   let truncated = false;
   function include(task) {
@@ -65,11 +66,12 @@ export function objectiveGraph(snapshot, objectiveId) {
   const nodes = [...selected.values()].map(task => {
     const layer = layers.get(task.id) ?? null;
     const waitingOn = task.dependencies.filter(id => allTasks.get(id)?.state !== 'done');
+    const paused = objectives.get(task.objectiveId)?.status === 'paused';
     return {
       id: task.id, title: task.title, state: task.state, role: task.role, check: task.check,
       scheduledScript: task.scheduledScript,
       dependencies: task.dependencies, external: task.objectiveId !== objectiveId,
-      waitingOn, layer, ready: task.state === 'pending' && layer !== null && !waitingOn.length,
+      waitingOn, layer, paused, ready: !paused && task.state === 'pending' && layer !== null && !waitingOn.length,
     };
   });
   const local = nodes.filter(node => !node.external);
