@@ -18,7 +18,7 @@ const executorLabels = {
 const actionLabels = {
   'project.create': 'Projeto cadastrado', 'objective.create': 'Objetivo criado',
   'objective.pause': 'Objetivo pausado', 'objective.resume': 'Objetivo retomado', 'objective.cancel': 'Objetivo cancelado',
-  'task.create': 'Tarefa criada', 'task.state': 'Estado da tarefa atualizado', 'task.schedule': 'Agendamento atualizado', 'objective.control': 'Controle do objetivo atualizado',
+  'task.create': 'Tarefa criada', 'task.state': 'Estado da tarefa atualizado', 'task.schedule': 'Agendamento atualizado', 'objective.control': 'Controle do objetivo atualizado', 'project.executorPolicy': 'Política do executor atualizada',
   'objective.plan': 'Tarefas do plano registradas', 'approval.request': 'Aprovação solicitada', 'approval.requestPush': 'Aprovação de push solicitada',
   'approval.approve': 'Aprovação encaminhada', 'approval.reject': 'Aprovação rejeitada',
   'approval.edit': 'Aprovação editada', 'git.stage': 'Caminho preparado', 'git.unstage': 'Caminho retirado do índice',
@@ -159,16 +159,67 @@ function activeDependencies() {
   }
 }
 
+function renderProjectPolicies(usage) {
+  const table = byId('projects-table');
+  if (!state.projects.length) return;
+  const rows = new Map([...table.querySelectorAll('[data-project-row]')].map(row => [row.dataset.projectRow, row]));
+  for (const project of state.projects) {
+    let row = rows.get(project.id);
+    if (!row) {
+      row = element('tr');
+      row.dataset.projectRow = project.id;
+      const cell = element('td');
+      const details = element('details');
+      const form = element('form', undefined, 'executor-policy-form');
+      form.dataset.executorPolicy = project.id;
+      const enabled = element('input');
+      enabled.type = 'checkbox';
+      enabled.dataset.policyEnabled = '';
+      const enabledLabel = element('label', 'Habilitar envio');
+      enabledLabel.prepend(enabled);
+      const max = element('input');
+      max.type = 'number';
+      max.min = '1';
+      max.max = '10';
+      max.required = true;
+      max.dataset.policyMax = '';
+      const maxLabel = element('label', 'Limite por projeto');
+      maxLabel.append(max);
+      const save = element('button', 'Salvar política', 'button button-quiet');
+      save.type = 'submit';
+      form.append(enabledLabel, maxLabel, save);
+      details.append(element('summary'), form);
+      cell.append(details);
+      row.append(element('td', project.name), element('td', project.path), cell);
+      table.querySelector('[data-project-placeholder]')?.remove();
+      table.append(row);
+    }
+    const policy = project.executorPolicy || { enabled: true, maxActive: 2 };
+    const summary = (policy.enabled ? 'Envio habilitado' : 'Envio desabilitado') + ' · ' + (usage.get(project.id) || 0) + '/' + policy.maxActive + ' ativos';
+    if (row.querySelector('summary').textContent !== summary) row.querySelector('summary').textContent = summary;
+    const revision = JSON.stringify(policy);
+    if (row.dataset.policyRevision === revision) continue;
+    row.dataset.policyRevision = revision;
+    row.querySelector('[data-policy-enabled]').checked = policy.enabled;
+    row.querySelector('[data-policy-max]').value = policy.maxActive;
+  }
+}
+
+function executorUsage() {
+  const projectsByObjective = new Map(state.objectives.map(objective => [objective.id, objective.projectId]));
+  const usage = new Map();
+  for (const task of state.tasks) {
+    if (!['dispatching', 'queued', 'running', 'dispatch_unknown'].includes(task.executor?.status)) continue;
+    const project = projectsByObjective.get(task.objectiveId);
+    if (project) usage.set(project, (usage.get(project) || 0) + 1);
+  }
+  return usage;
+}
+
 function render() {
   const getProject = id => state.projects.find(entry => entry.id === id)?.name;
-  const table = byId('projects-table');
-  if (state.projects.length) {
-    table.replaceChildren(...state.projects.map(project => {
-      const tr = element('tr');
-      tr.append(element('td', project.name), element('td', project.path));
-      return tr;
-    }));
-  }
+  const usage = executorUsage();
+  renderProjectPolicies(usage);
   setText('projects-count', state.projects.length + ' cadastrados');
   setText('tasks-count', state.tasks.filter(task => !['done', 'cancelled'].includes(task.state)).length + ' abertas');
   setText('coordinator-status', 'Rascunhos de plano e acompanhamento');
@@ -204,7 +255,7 @@ function render() {
     }
     return card;
   }, 'Crie um objetivo depois de cadastrar um projeto.');
-  renderTasks();
+  renderTasks(usage);
   fill('history-list', state.audit.slice(-50).reverse(), entry =>
     row(actionLabels[entry.action] || entry.action, new Date(entry.at).toLocaleString('pt-BR')),
   'As ações realizadas nesta central aparecem aqui.');
@@ -217,7 +268,7 @@ function render() {
   activeDependencies();
 }
 
-function renderTasks() {
+function renderTasks(usage = executorUsage()) {
   const getObjective = id => state.objectives.find(entry => entry.id === id)?.title;
   function taskRow(task) {
     const objective = state.objectives.find(item => item.id === task.objectiveId);
@@ -276,7 +327,9 @@ function renderTasks() {
     script.addEventListener('change', () => { run.disabled = !script.value || !runnable; schedule.disabled = !task.scheduledScript && !script.value; });
     checkControls.append(script, run, schedule); item.append(checkControls);
     if (task.scheduledScript) item.append(element('p', 'Agendado: ' + task.scheduledScript, 'task-schedule-info'));
-    if (state.dispatchEnabled && runnable && !task.scheduledScript && task.executor?.status !== 'dispatch_unknown') {
+    const projectPolicy = state.projects.find(project => project.id === objective?.projectId)?.executorPolicy || { enabled: true, maxActive: 2 };
+    const projectUsage = usage.get(objective?.projectId) || 0;
+    if (state.dispatchEnabled && projectPolicy.enabled !== false && projectUsage < (projectPolicy.maxActive || 2) && runnable && !task.scheduledScript && task.executor?.status !== 'dispatch_unknown') {
       const dispatch = element('button', 'Enviar ao Codex', 'button button-quiet');
       dispatch.type = 'button';
       dispatch.dataset.taskDispatch = task.id;
@@ -839,6 +892,14 @@ async function mutate(action, data) {
 
 document.addEventListener('submit', async event => {
   const form = event.target;
+  if (form.matches('[data-executor-policy]')) {
+    event.preventDefault();
+    const maxActive = form.querySelector('[data-policy-max]').valueAsNumber;
+    const button = form.querySelector('button[type=submit]'); button.disabled = true;
+    await mutate('project.executorPolicy', { id: form.dataset.executorPolicy, enabled: form.querySelector('[data-policy-enabled]').checked, maxActive });
+    button.disabled = false;
+    return;
+  }
   const data = new FormData(form);
   let action = form.id === 'approval-form' ? 'approval.request'
     : data.has('path') ? 'project.create'

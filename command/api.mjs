@@ -152,6 +152,7 @@ export function createCommandApi(file, getActivity, {
             send(response, headers, 503, { error: 'Configure o módulo do executor Codex no servidor.' });
             return;
           }
+          await synchronizeExecutor(database);
           await database.dispatchTask(data, (project, instruction) =>
             prepareCoordinatorDispatch({ directory: coordinatorDirectory, executorModule, project, instruction }));
           send(response, headers, 200, database.snapshot());

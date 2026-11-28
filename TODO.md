@@ -19,6 +19,7 @@
 - [x] Enviar tarefas elegíveis após confirmação à fila configurada do #10 e sincronizar o resultado para revisão.
 - [x] Revisar o diff da worktree do agente e vincular a conclusão à versão do conteúdo revisado.
 - [x] Retirar tarefas Codex pendentes da fila e recusar cancelamento depois que o executor assumir a tarefa.
+- [x] Configurar habilitação de envio e limite de trabalhos Codex ativos por projeto.
 - [ ] Decompor objetivos com revisão humana, agendar tarefas independentes e registrar progresso, bloqueio, reatribuição e revisão final.
 - [x] Gerar e revisar um primeiro rascunho por regras a partir das ações escritas no objetivo e persistir as dependências após aprovação do plano.
 - [ ] Definir modelos, políticas por projeto, limites de concorrência e tokens, medição de custo e alertas.

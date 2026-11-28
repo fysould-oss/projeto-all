@@ -10,10 +10,11 @@ import { normalizePreviewUrl } from './previews.mjs';
 import { mergeCheckHistory } from './check-history.mjs';
 
 const STATES = new Set(['pending', 'running', 'blocked', 'review', 'done', 'failed', 'cancelled']);
-const ACTIONS = new Set(['project.create', 'objective.create', 'objective.plan', 'task.create', 'task.state', 'preview.save']);
+const ACTIONS = new Set(['project.create', 'project.executorPolicy', 'objective.create', 'objective.plan', 'task.create', 'task.state', 'preview.save']);
 const APPROVAL_ACTIONS = new Set(['approval.request', 'approval.requestPush', 'approval.edit', 'approval.approve', 'approval.reject']);
 const INDEX_ACTIONS = new Set(['git.stage', 'git.unstage']);
 const APPROVAL_TTL_MS = 15 * 60 * 1000;
+const DEFAULT_EXECUTOR_POLICY = { enabled: true, maxActive: 2 };
 
 const now = () => new Date().toISOString();
 const clone = value => structuredClone(value);
@@ -73,11 +74,12 @@ export async function createStore(path) {
 
   function audit(next, action, data, result) {
     next.audit.push({ id: randomUUID(), at: now(), action, result,
-      fields: ['name', 'path', 'projectId', 'title', 'objectiveId', 'dependencies', 'id', 'state']
+      fields: ['name', 'path', 'projectId', 'title', 'objectiveId', 'dependencies', 'id', 'state', 'enabled', 'maxActive']
         .filter(field => Object.hasOwn(data, field)) });
   }
 
   state.approvals ??= [];
+  for (const project of state.projects) project.executorPolicy ??= { ...DEFAULT_EXECUTOR_POLICY };
   state.checkHistory = mergeCheckHistory(state.checkHistory);
   state.previews ??= [];
   if (!Array.isArray(state.previews)) throw new TypeError('invalid previews snapshot');
@@ -278,6 +280,13 @@ export async function createStore(path) {
     const objective = next.objectives.find(item => item.id === task.objectiveId);
     const project = next.projects.find(item => item.id === objective?.projectId);
     if (!project || ['paused', 'cancelled'].includes(objective.status)) throw new Error('O objetivo precisa estar ativo.');
+    if (!project.executorPolicy.enabled) throw new Error('O envio ao Codex está desabilitado para este projeto.');
+    const objectives = new Set(next.objectives.filter(item => item.projectId === project.id).map(item => item.id));
+    const active = next.tasks.filter(item => objectives.has(item.objectiveId)
+      && ['dispatching', 'queued', 'running', 'dispatch_unknown'].includes(item.executor?.status)).length;
+    if (active >= project.executorPolicy.maxActive) {
+      throw new Error('O projeto atingiu o limite de trabalhos Codex pendentes ou em execução.');
+    }
     if (task.dependencies.some(id => next.tasks.find(item => item.id === id)?.state !== 'done')) {
       throw new Error('Conclua as dependências antes de enviar esta tarefa.');
     }
@@ -389,8 +398,16 @@ export async function createStore(path) {
     if (action === 'project.create') {
       const name = text(data.name, 'name');
       const path = await projectDirectory(data.path);
-      result = { id: randomUUID(), name, path, createdAt: timestamp };
+      result = { id: randomUUID(), name, path, createdAt: timestamp, executorPolicy: { ...DEFAULT_EXECUTOR_POLICY } };
       next.projects.push(result);
+    } else if (action === 'project.executorPolicy') {
+      const project = next.projects.find(item => item.id === data.id);
+      if (!project) throw new Error('Projeto não encontrado.');
+      if (typeof data.enabled !== 'boolean' || !Number.isInteger(data.maxActive) || data.maxActive < 1 || data.maxActive > 10) {
+        throw new Error('Informe a habilitação e um limite inteiro de 1 a 10 trabalhos.');
+      }
+      project.executorPolicy = { enabled: data.enabled, maxActive: data.maxActive };
+      result = project;
     } else if (action === 'preview.save') {
       const project = next.projects.find(item => item.id === data.projectId);
       if (!project) throw new Error('Projeto não encontrado.');
