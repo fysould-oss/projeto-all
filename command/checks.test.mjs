@@ -55,9 +55,15 @@ test('cancels a long-running script', async t => {
   const pid = Number(running.output.match(/^123456 (\d+)/m)[1]);
   assert.doesNotThrow(() => process.kill(pid, 0));
   assert.equal(checks.activeCount(), 1);
+  const [active] = checks.processes();
+  assert.equal(active.id, run.id);
+  assert.equal(active.projectId, dir);
+  assert.ok(active.pid > 0);
+  assert.deepEqual(Object.keys(active).sort(), ['id', 'pid', 'projectId', 'script', 'startedAt', 'status']);
   const result = await checks.cancel(dir, run.id);
   assert.equal(result.status, 'cancelled');
   assert.equal(checks.activeCount(), 0);
+  assert.deepEqual(checks.processes(), []);
   assert.equal((await checks.list(dir))[0].status, 'cancelled');
   assert.throws(() => process.kill(pid, 0), { code: 'ESRCH' });
 });

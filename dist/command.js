@@ -1000,6 +1000,12 @@ function renderObservability(resources) {
   if (!panel) {
     panel = element('section', undefined, 'panel observability-panel'); panel.id = 'observabilidade'; panel.dataset.panel = 'observabilidade';
     panel.innerHTML = '<header class="panel-header"><div><p class="eyebrow">TELEMETRIA</p><h2>Observabilidade</h2></div><span class="panel-meta">snapshot local</span></header><div class="observability-grid"><div class="observation-metric"><div><span>CPU</span><strong id="obs-cpu-label">Indisponível</strong></div><div class="observation-bar" role="progressbar" aria-label="Uso de CPU"><i id="obs-cpu-bar"></i></div></div><div class="observation-metric"><div><span>Memória</span><strong id="obs-memory-label">Indisponível</strong></div><div class="observation-bar" role="progressbar" aria-label="Uso de memória"><i id="obs-memory-bar"></i></div></div><dl class="observation-details"><div><dt>Checks ativos</dt><dd id="obs-checks">Indisponível</dd></div><div><dt>Núcleos</dt><dd id="obs-cores">Indisponível</dd></div><div><dt>RSS do servidor</dt><dd id="obs-rss">Indisponível</dd></div><div><dt>Uptime</dt><dd id="obs-uptime">Indisponível</dd></div></dl></div>';
+    const processes = element('div', undefined, 'stack-list');
+    processes.id = 'observed-processes';
+    const feedback = element('p', '', 'form-feedback');
+    feedback.id = 'process-feedback';
+    feedback.setAttribute('role', 'status');
+    panel.append(processes, feedback);
     byId('visao')?.after(panel);
     const nav = document.querySelector('.main-nav');
     if (nav && !nav.querySelector('[data-section="observabilidade"]')) {
@@ -1019,7 +1025,50 @@ function renderObservability(resources) {
   const used = Number.isFinite(resources.total) && resources.total > 0 && Number.isFinite(resources.free) ? Math.max(0, Math.min(100, 100 * (1 - resources.free / resources.total))) : null;
   setText('obs-cpu-label', cpu == null ? 'Indisponível' : cpu.toFixed(1) + '%'); setText('obs-memory-label', used == null ? 'Indisponível' : used.toFixed(1) + '%');
   setText('obs-checks', Number.isFinite(resources.activeChecks) ? String(resources.activeChecks) : 'Indisponível'); setText('obs-cores', Number.isFinite(resources.cores) ? String(resources.cores) : 'Indisponível'); setText('obs-rss', formatBytes(resources.serverRss)); setText('obs-uptime', formatUptime(resources.uptime));
+  renderObservedProcesses();
   for (const [id, value] of [['obs-cpu-bar', cpu], ['obs-memory-bar', used]]) { const bar = byId(id); bar.style.width = (value == null ? 0 : value) + '%'; bar.parentElement.setAttribute('aria-valuenow', value == null ? '0' : String(value)); bar.parentElement.setAttribute('aria-valuetext', value == null ? 'Indisponível' : value.toFixed(1) + '%'); }
+}
+
+function renderObservedProcesses() {
+  const list = byId('observed-processes');
+  const processes = state.processes || [];
+  const signature = JSON.stringify(processes);
+  if (list.dataset.signature !== signature) {
+    list.dataset.signature = signature;
+    list.replaceChildren(element('h3', 'Processos de verificação'));
+    if (!processes.length) list.append(element('p', 'Nenhuma verificação em execução.', 'empty-state'));
+    for (const run of processes) {
+      const project = state.projects.find(item => item.id === run.projectId);
+      const item = row(run.script + ' · ' + (project?.name || 'Projeto local'), 'PID ' + run.pid + ' · ' + (checkLabels[run.status] || run.status));
+      const elapsed = element('p');
+      elapsed.dataset.startedAt = run.startedAt;
+      item.append(elapsed);
+      const cancel = element('button', 'Interromper', 'button button-quiet');
+      cancel.type = 'button';
+      cancel.disabled = run.status !== 'running';
+      cancel.setAttribute('aria-label', 'Interromper ' + run.script + ' no PID ' + run.pid);
+      cancel.addEventListener('click', async () => {
+        cancel.disabled = true;
+        setText('process-feedback', 'Interrompendo a verificação…');
+        try {
+          await request('', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'check.cancel', data: { projectId: run.projectId, id: run.id } }),
+          });
+          setText('process-feedback', 'Processo encerrado.');
+          await refresh();
+        } catch (error) {
+          setText('process-feedback', error.message);
+          cancel.disabled = false;
+        }
+      });
+      item.append(cancel);
+      list.append(item);
+    }
+  }
+  for (const elapsed of list.querySelectorAll('[data-started-at]')) {
+    elapsed.textContent = 'Tempo decorrido: ' + Math.max(0, Math.floor((Date.now() - Date.parse(elapsed.dataset.startedAt)) / 1000)) + ' s';
+  }
 }
 
 async function request(query = '', init) {

@@ -66,6 +66,12 @@ export function createChecks(options = {}) {
   function activeCount() {
     return [...runs.values()].filter(run => run.child).length;
   }
+  function processes() {
+    return [...runs.values()].filter(run => Number.isSafeInteger(run.child?.pid)).map(run => ({
+      id: run.id, projectId: run.project, script: run.script, startedAt: run.startedAt,
+      status: run.status, pid: run.child.pid,
+    }));
+  }
   function availableSlots() {
     return closed ? 0 : MAX_ACTIVE - activeCount();
   }
@@ -144,5 +150,5 @@ export function createChecks(options = {}) {
     }
     await Promise.all(active.map(run => run.done));
   }
-  return { available, activeCount, availableSlots, list, start, cancel, wait, close };
+  return { available, activeCount, availableSlots, list, processes, start, cancel, wait, close };
 }
