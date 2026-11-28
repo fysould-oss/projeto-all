@@ -41,6 +41,17 @@ button,input,select {
 .app-shell {
   min-height:100vh;
 }
+#global-search { width:min(34rem, calc(100% - 1.5rem)); max-height:85dvh; color:var(--text); background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); }
+#global-search::backdrop { background:#080e19bd; }
+#global-search label { display:grid; gap:.35rem; }
+#global-search input { width:100%; background:var(--bg-deep); border:1px solid var(--line); border-radius:var(--radius); padding:.5rem; }
+.search-heading { display:flex; justify-content:space-between; align-items:center; gap:.5rem; }
+.search-heading h2 { font-size:1rem; }
+#global-search-results { list-style:none; margin:0; padding:0; }
+#global-search-results a { display:block; color:var(--cyan); padding:.5rem; overflow-wrap:anywhere; }
+#global-search-results a:focus-visible { outline:2px solid var(--cyan); outline-offset:-2px; }
+#global-search-open kbd { font-size:.7rem; }
+@media(max-width:640px) { #global-search-open kbd { display:none; } }
 .topbar {
   height:64px;
   display:flex;

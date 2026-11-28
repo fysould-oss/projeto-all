@@ -50,6 +50,7 @@
 - [x] Persistir tema, densidade e tamanho do texto, com exportação, importação e restauração dos padrões.
 - [x] Salvar visualizações nomeadas e alternar entre presets no navegador.
 - [x] Recolher a barra lateral do desktop preservando os atalhos, com largura configurável e persistente.
+- [x] Buscar projetos, objetivos e tarefas pela barra superior ou pelo atalho de teclado.
 - [x] Exibir, ocultar, redimensionar e reordenar os indicadores do resumo operacional, com persistência local.
 - [x] Visualizar o grafo de dependências do objetivo com estados, prontidão e detalhes navegáveis de cada tarefa.
 - [ ] Compartilhar tokens com a interface do WebView e preservar acessibilidade.

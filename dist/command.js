@@ -1340,13 +1340,80 @@ document.addEventListener('click', async event => {
 
 function highlightSection() {
   const hash = location.hash || '#visao';
+  const container = byId(hash.slice(1))?.closest('[data-panel]');
   for (const link of document.querySelectorAll('[data-section]')) {
-    const current = link.hash === hash;
+    const current = link.hash === hash || (container && link.dataset.section === container.id);
     link.classList.toggle('is-active', current);
     if (current) link.setAttribute('aria-current', 'location');
     else link.removeAttribute('aria-current');
   }
 }
+const searchDialog = byId('global-search');
+const searchQuery = byId('global-search-query');
+const searchResults = byId('global-search-results');
+const normalizeSearch = value => String(value ?? '').normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase('pt-BR');
+function renderGlobalSearch() {
+  const terms = normalizeSearch(searchQuery.value).trim().split(/\s+/).filter(Boolean);
+  searchResults.replaceChildren();
+  if (!terms.length) return setText('global-search-status', 'Digite um nome, título ou ID.');
+  const projects = new Map(state.projects.map(project => [project.id, project.name]));
+  const objectives = new Map(state.objectives.map(objective => [objective.id, objective]));
+  const groups = [
+    ['project', 'Projeto', state.projects, entry => [entry.name]],
+    ['objective', 'Objetivo', state.objectives, entry => [entry.title, projects.get(entry.projectId)]],
+    ['task', 'Tarefa', state.tasks, entry => {
+      const objective = objectives.get(entry.objectiveId);
+      return [entry.title, objective?.title, projects.get(objective?.projectId)];
+    }],
+  ];
+  let count = 0;
+  for (const [prefix, label, entries, describe] of groups) {
+    for (const entry of entries) {
+      const parts = describe(entry).filter(Boolean);
+      const haystack = normalizeSearch([...parts, entry.id].join(' '));
+      if (!terms.every(term => haystack.includes(term))) continue;
+      count += 1;
+      if (count > 20) continue;
+      const item = element('li');
+      const link = element('a', label + ' · ' + parts.join(' / '));
+      link.href = '#' + prefix + '-' + entry.id;
+      item.append(link);
+      searchResults.append(item);
+    }
+  }
+  setText('global-search-status', count ? (count > 20 ? '20 de ' + count + ' resultados' : count + (count === 1 ? ' resultado' : ' resultados')) : 'Nenhum resultado.');
+}
+function openGlobalSearch() {
+  if (!searchDialog.open) searchDialog.showModal();
+  renderGlobalSearch();
+  searchQuery.select();
+}
+byId('global-search-open').addEventListener('click', openGlobalSearch);
+byId('global-search-close').addEventListener('click', () => searchDialog.close());
+searchQuery.addEventListener('input', renderGlobalSearch);
+searchQuery.addEventListener('keydown', event => {
+  if (event.key !== 'Enter' && event.key !== 'ArrowDown') return;
+  const first = searchResults.querySelector('a');
+  if (!first) return;
+  event.preventDefault();
+  if (event.key === 'Enter') first.click();
+  else first.focus();
+});
+searchResults.addEventListener('click', event => {
+  const link = event.target.closest('a');
+  if (!link || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+  searchDialog.close();
+  const target = byId(link.hash.slice(1));
+  if (target) {
+    target.tabIndex = -1;
+    target.focus({ preventScroll: true });
+  }
+});
+window.addEventListener('keydown', event => {
+  if (!(event.ctrlKey || event.metaKey) || event.altKey || event.shiftKey || event.key.toLowerCase() !== 'k') return;
+  event.preventDefault();
+  openGlobalSearch();
+});
 byId('refresh-command').addEventListener('click', refresh);
 byId('graph-refresh').addEventListener('click', () => {
   const objective = byId('graph-objective').value;

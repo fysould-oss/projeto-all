@@ -17,7 +17,14 @@
       </a>
       <div class="topbar-context"><span class="status-dot" aria-hidden="true"></span><span id="connection-state">Conectando ao serviço local…</span><span class="separator">/</span><span id="last-sync">Sem sincronização</span></div>
       <a class="office-link" href="./index.html">Abrir escritório <span aria-hidden="true">↗</span></a>
+      <button type="button" class="button button-quiet" id="global-search-open" aria-haspopup="dialog" aria-keyshortcuts="Control+K Meta+K">Buscar <kbd>Ctrl/⌘ K</kbd></button>
     </header>
+    <dialog id="global-search" aria-labelledby="global-search-title">
+      <div class="search-heading"><h2 id="global-search-title">Buscar na central</h2><button type="button" class="button button-quiet" id="global-search-close">Fechar</button></div>
+      <label>Projeto, objetivo ou tarefa <input id="global-search-query" type="search" maxlength="120" autofocus></label>
+      <p id="global-search-status" role="status"></p>
+      <ul id="global-search-results"></ul>
+    </dialog>
 
     <div class="workspace">
       <aside class="sidebar" aria-label="Navegação do centro de comando">
