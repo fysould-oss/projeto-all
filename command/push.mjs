@@ -93,6 +93,45 @@ export async function listRemotes(project) {
   return remotes(await repository(project));
 }
 
+export function githubRepository(remote) {
+  const match = /^(?:https:\/\/github\.com\/|ssh:\/\/git@github\.com\/|git@github\.com:)([a-z\d-]+)\/([a-z\d_.-]+)\/?$/i.exec(remote);
+  if (!match) return null;
+  const [, owner, path] = match;
+  const repo = path.replace(/\.git$/i, '');
+  return repo && repo !== '.' && repo !== '..' ? { owner, repo } : null;
+}
+
+export async function githubPullRequests(project) {
+  const cwd = await repository(project);
+  const branch = (await git(cwd, ['branch', '--show-current'])).trim();
+  if (!branch) return { branch, repositories: [] };
+  const tracking = (await git(cwd, ['for-each-ref', '--format=%(upstream:remotename)', '--', 'refs/heads/' + branch])).trim();
+  const remotesFound = await remotes(cwd);
+  const remote = remotesFound.find(value => value === tracking && !value.startsWith('-'))
+    || remotesFound.find(value => value === 'origin')
+    || (remotesFound.length === 1 && !remotesFound[0].startsWith('-') ? remotesFound[0] : '');
+  const remoteUrl = remote && (await git(cwd, ['remote', 'get-url', remote])).trim();
+  const target = githubRepository(remoteUrl);
+  if (!target) return { branch, repositories: [] };
+  const base = 'https://github.com/' + target.owner + '/' + target.repo;
+  const search = new URLSearchParams({ q: 'is:pr is:open head:"' + branch + '"' });
+  const api = new URL('/repos/' + target.owner + '/' + target.repo + '/pulls', 'https://api.github.com');
+  api.search = new URLSearchParams({ state: 'open', head: target.owner + ':' + branch, per_page: '20' });
+  const entry = { remote, name: target.owner + '/' + target.repo, url: base + '/pulls?' + search, pulls: [], available: false };
+  try {
+    const response = await fetch(api, { redirect: 'error', signal: AbortSignal.timeout(4000), headers: { Accept: 'application/vnd.github+json' } });
+    if (response.ok) {
+      const pulls = await response.json();
+      if (Array.isArray(pulls)) {
+        entry.available = true;
+        entry.pulls = pulls.slice(0, 20).filter(pull => Number.isSafeInteger(pull?.number) && pull.number > 0)
+          .map(pull => ({ number: pull.number, draft: pull.draft === true, url: base + '/pull/' + pull.number }));
+      }
+    }
+  } catch {}
+  return { branch, repositories: [entry] };
+}
+
 export async function preparePush(project, remote) {
   const current = await state(await repository(project), remote);
   await requireFastForward(current);

@@ -3,7 +3,7 @@ import { inspectProject, resources } from './inspect.mjs';
 import { draftPlan } from './plan.mjs';
 import { createChecks } from './checks.mjs';
 import { listFiles } from './index.mjs';
-import { listRemotes } from './push.mjs';
+import { githubPullRequests, listRemotes } from './push.mjs';
 import { objectiveGraph } from './graph.mjs';
 import { readCoordinatorJobs } from './coordinator-status.mjs';
 import { prepareCoordinatorDispatch } from './coordinator-dispatch.mjs';
@@ -239,14 +239,15 @@ export function createCommandApi(file, getActivity, {
       send(response, headers, 200, graph);
       return;
     }
-    if (kind === 'files' || kind === 'remotes') {
+    if (['files', 'remotes', 'github-pulls'].includes(kind)) {
       const project = snapshot.projects.find(entry => entry.id === url.searchParams.get('project'));
       if (!project) {
         send(response, headers, 404, { error: 'Projeto não encontrado.' });
         return;
       }
       try {
-        const result = kind === 'files' ? { files: await listFiles(project) } : { remotes: await listRemotes(project) };
+        const result = kind === 'github-pulls' ? await githubPullRequests(project)
+          : kind === 'files' ? { files: await listFiles(project) } : { remotes: await listRemotes(project) };
         send(response, headers, 200, result);
       } catch (error) {
         send(response, headers, 422, { error: error.code ? 'Não foi possível consultar o projeto Git.' : error.message });

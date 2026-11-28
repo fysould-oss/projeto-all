@@ -230,7 +230,8 @@ function render() {
   setText('projects-count', state.projects.length + ' cadastrados');
   setText('tasks-count', state.tasks.filter(task => !['done', 'cancelled'].includes(task.state)).length + ' abertas');
   setText('coordinator-status', 'Rascunhos de plano e acompanhamento');
-  prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff completo'], ['staged', 'Ver diff preparado']]);
+  prepareGit('git-list', [['status', 'Consultar status'], ['diff', 'Ver diff completo'], ['staged', 'Ver diff preparado'],
+    ['github-pulls', 'Consultar PRs no GitHub']]);
   renderApprovals();
   renderPreviewPanel();
   renderGraphPanel();
@@ -1074,6 +1075,7 @@ document.addEventListener('change', async event => {
     renderTasks();
   }
   if (input.matches('#git-list [data-project-select]')) {
+    input.closest('#git-list').querySelector('[data-git-output]').textContent = 'Selecione uma consulta Git.';
     setText('git-index-feedback', '');
     refreshGitFiles(input.closest('section'), input.value);
   }
@@ -1284,7 +1286,8 @@ document.addEventListener('click', async event => {
   const button = event.target.closest('[data-git-view]');
   if (!button) return;
   const group = button.closest('section') || document;
-  const project = group.querySelector('[data-project-select], select[name=projectId]')?.value;
+  const projectSelect = group.querySelector('[data-project-select], select[name=projectId]');
+  const project = projectSelect?.value;
   const output = group.querySelector('[data-git-output], pre');
   if (!output) return;
   if (!project) {
@@ -1296,9 +1299,31 @@ document.addEventListener('click', async event => {
   try {
     const query = new URLSearchParams({ view: button.dataset.gitView, project });
     const result = await request('?' + query);
-    output.textContent = result.output || (result.passed ? 'Nenhum problema de espaço em branco nas alterações rastreadas.' : 'Nenhuma alteração rastreada.');
+    if (projectSelect.value !== project) return;
+    if (button.dataset.gitView === 'github-pulls') {
+      const [repository] = result.repositories;
+      if (!repository) {
+        output.textContent = result.branch ? 'Nenhum remoto GitHub compatível selecionado pelo Git.' : 'Nenhuma branch local ativa.';
+        return;
+      }
+      const linkTo = (label, url) => {
+        const link = element('a', label);
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        return link;
+      };
+      const summary = repository.available
+        ? (repository.pulls.length ? '' : '\nNenhum PR aberto encontrado na API pública.')
+        : '\nConsulta pública indisponível. Abra a busca no GitHub para consultar com sua sessão.';
+      output.replaceChildren(repository.name + ' · ' + result.branch + ' · ' + repository.remote + '\n',
+        linkTo('Buscar PRs da branch no GitHub', repository.url), summary);
+      for (const pull of repository.pulls) output.append('\n', linkTo('PR #' + pull.number + (pull.draft ? ' · Rascunho' : ''), pull.url));
+    } else {
+      output.textContent = result.output || (result.passed ? 'Nenhum problema de espaço em branco nas alterações rastreadas.' : 'Nenhuma alteração rastreada.');
+    }
   } catch (error) {
-    output.textContent = error.message;
+    if (projectSelect.value === project) output.textContent = error.message;
   } finally {
     button.disabled = false;
   }

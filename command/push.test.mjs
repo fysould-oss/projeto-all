@@ -5,7 +5,18 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { preparePush, executePush } from './push.mjs';
+import { preparePush, executePush, githubRepository } from './push.mjs';
+
+test('projects canonical GitHub remotes without credentials or redirects', () => {
+  for (const url of ['https://github.com/owner/repo.git', 'ssh://git@github.com/owner/repo', 'git@github.com:owner/repo.git']) {
+    assert.deepEqual(githubRepository(url), { owner: 'owner', repo: 'repo' });
+  }
+  for (const url of ['https://secret@github.com/owner/repo', 'https://github.com.example.invalid/owner/repo',
+    'ssh://git@github.com:22/owner/repo', 'https://github.com/owner/repo?token=secret',
+    'https://github.com/owner/...git', 'git@github.com:owner/repo/extra']) {
+    assert.equal(githubRepository(url), null);
+  }
+});
 
 const execute = promisify(execFile);
 
