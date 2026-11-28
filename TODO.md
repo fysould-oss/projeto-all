@@ -26,6 +26,7 @@
 - [ ] Integrar sessões de terminal, histórico, cancelamento de árvore de processos, testes, builds e logs.
 - [x] Executar scripts declarados de lint, testes, build e tipos em projetos Node, com saída limitada, estado, duração e interrupção pela central.
 - [x] Vincular a execução de um script de qualidade à tarefa, às suas dependências e ao resultado persistido no grafo.
+- [x] Agendar scripts escolhidos pelo operador para iniciar quando as dependências forem concluídas e houver capacidade.
 - [ ] Integrar stage, commit, push, PR, checks e deploy com confirmação e recuperação.
 - [x] Listar e preparar mudanças por arquivo, retirar mudanças do índice e aprovar o commit da árvore preparada.
 - [x] Publicar a branch atual mediante aprovação que vincula o destino e os commits local e remoto.

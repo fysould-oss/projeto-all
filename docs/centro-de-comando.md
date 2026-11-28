@@ -26,6 +26,8 @@ Em Qualidade, selecione um projeto confiável com `package.json` para executar s
 
 Também é possível executar um desses scripts a partir de uma tarefa pendente ou com falha, desde que suas dependências estejam concluídas. Uma execução aprovada conclui a tarefa e libera suas dependentes. Falhas e cancelamentos atualizam o estado da tarefa. O nome do script, seu resultado e sua duração ficam registrados na tarefa e aparecem no grafo. Para acessar a saída ou interromper uma execução em andamento, use a seção Qualidade.
 
+Use **Agendar** para escolher antecipadamente o script de uma tarefa. O servidor guarda a escolha, espera as dependências e inicia a execução quando houver uma vaga. O limite é de duas verificações simultâneas, compartilhado com Qualidade. A fila é retomada ao iniciar o servidor. Use **Limpar agendamento** para remover uma tarefa ainda na fila; execuções interrompidas no reinício ficam registradas como falha, sem nova execução automática.
+
 Em Previews, selecione um projeto e salve o endereço de uma aplicação já em execução no mesmo computador do navegador. Use HTTP com `localhost` ou `127.0.0.1` e uma porta entre 1024 e 65535. A central guarda um endereço por projeto e só abre a aplicação quando você inicia o preview. Os controles ajustam as dimensões do quadro para desktop, tablet, celular ou tamanho personalizado. É possível girar, recarregar, programar recarga enquanto a aba está visível e parar. A abertura em nova aba atende aplicações que bloqueiam incorporação por CSP ou X-Frame-Options.
 
 ## Arquitetura

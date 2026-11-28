@@ -63,14 +63,19 @@ export function createChecks(options = {}) {
   function list(project) {
     return [...runs.values()].filter(run => run.project === projectKey(project)).reverse().map(publicRun);
   }
+  function availableSlots() {
+    return closed ? 0 : MAX_ACTIVE - [...runs.values()].filter(run => run.child).length;
+  }
 
   async function start(project, script) {
     const cwd = pathOf(project);
     if (!NAMES.includes(script)) throw new TypeError('Script de verificação indisponível.');
     if (!(await available(cwd)).includes(script)) throw new Error(`Script não configurado: ${script}.`);
     if (closed) throw new Error('O serviço de execução está encerrando.');
-    if ([...runs.values()].filter(run => run.child).length >= MAX_ACTIVE) {
-      throw new Error('Há duas verificações em andamento. Aguarde ou interrompa uma delas.');
+    if (!availableSlots()) {
+      const error = new Error('Há duas verificações em andamento. Aguarde ou interrompa uma delas.');
+      error.code = 'CHECK_CAPACITY';
+      throw error;
     }
     while (runs.size >= MAX_HISTORY) {
       const completed = [...runs.values()].find(run => !run.child);
@@ -136,5 +141,5 @@ export function createChecks(options = {}) {
     }
     await Promise.all(active.map(run => run.done));
   }
-  return { available, list, start, cancel, wait, close };
+  return { available, availableSlots, list, start, cancel, wait, close };
 }

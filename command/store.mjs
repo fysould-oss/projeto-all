@@ -172,10 +172,11 @@ export async function createStore(path) {
     return result;
   }
 
-  async function beginTaskCheck(data, checks) {
+  async function beginTaskCheck(data, checks, scheduled) {
     const next = clone(state);
     const task = next.tasks.find(item => item.id === data?.id);
     if (!task) throw new Error('Tarefa não encontrada.');
+    if (scheduled && task.scheduledScript !== data.script) return null;
     if (!['pending', 'failed'].includes(task.state)) throw new Error('A tarefa precisa estar pendente ou com falha.');
     if (task.dependencies.some(id => next.tasks.find(item => item.id === id)?.state !== 'done')) {
       throw new Error('Conclua as dependências antes de iniciar esta tarefa.');
@@ -184,6 +185,7 @@ export async function createStore(path) {
     const project = next.projects.find(item => item.id === objective?.projectId);
     if (!project) throw new Error('Projeto não encontrado.');
     const run = await checks.start(project, data.script);
+    delete task.scheduledScript;
     task.state = 'running';
     task.updatedAt = now();
     task.check = { id: run.id, script: run.script, status: run.status, durationMs: run.durationMs };
@@ -194,6 +196,36 @@ export async function createStore(path) {
       throw error;
     }
     return { project, run };
+  }
+
+  async function scheduleTask(data, checks) {
+    const next = clone(state);
+    const task = next.tasks.find(item => item.id === data?.id);
+    if (!task || !['pending', 'failed'].includes(task.state)) throw new Error('Selecione uma tarefa pendente ou com falha.');
+    if (data.script === null) {
+      delete task.scheduledScript;
+    } else {
+      const objective = next.objectives.find(item => item.id === task.objectiveId);
+      const project = next.projects.find(item => item.id === objective?.projectId);
+      if (!project || !(await checks.available(project)).includes(data.script)) {
+        throw new Error('O script não está configurado no projeto.');
+      }
+      task.scheduledScript = data.script;
+    }
+    task.updatedAt = now();
+    return save(next, 'task.schedule', data, task);
+  }
+
+  async function failScheduledTask(id, script) {
+    const next = clone(state);
+    const task = next.tasks.find(item => item.id === id);
+    if (task?.scheduledScript !== script || !['pending', 'failed'].includes(task.state)) return;
+    if (task.dependencies.some(dependency => next.tasks.find(item => item.id === dependency)?.state !== 'done')) return;
+    delete task.scheduledScript;
+    task.state = 'failed';
+    task.check = { script, status: 'failed', durationMs: null };
+    task.updatedAt = now();
+    await save(next, 'task.check.failed', {}, task);
   }
 
   async function finishTaskCheck(taskId, run) {
@@ -274,6 +306,7 @@ export async function createStore(path) {
         }
       }
       task.state = data.state;
+      if (!['pending', 'failed'].includes(task.state)) delete task.scheduledScript;
       task.updatedAt = timestamp;
       result = task;
     }
@@ -296,7 +329,9 @@ export async function createStore(path) {
     mutate(action, data) {
       return serialize(() => mutate(action, data));
     },
-    beginTaskCheck(data, checks) { return serialize(() => beginTaskCheck(data, checks)); },
+    beginTaskCheck(data, checks, scheduled = false) { return serialize(() => beginTaskCheck(data, checks, scheduled)); },
     finishTaskCheck(taskId, run) { return serialize(() => finishTaskCheck(taskId, run)); },
+    scheduleTask(data, checks) { return serialize(() => scheduleTask(data, checks)); },
+    failScheduledTask(id, script) { return serialize(() => failScheduledTask(id, script)); },
   };
 }

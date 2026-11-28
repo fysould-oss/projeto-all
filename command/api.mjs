@@ -27,10 +27,59 @@ export function createCommandApi(file, getActivity) {
   const checks = createChecks();
   const taskChecks = new Set();
   let store;
+  let draining;
+  let pendingDrain = false;
+  let closed = false;
   const open = () => store ??= createStore(file).catch(error => {
     store = undefined;
     throw error;
   });
+
+  function followRun(project, run, complete) {
+    const completion = checks.wait(project, run.id)
+      .then(complete)
+      .catch(() => console.error('Não foi possível registrar o resultado da tarefa.'))
+      .finally(() => {
+        taskChecks.delete(completion);
+        scheduleDrain();
+      });
+    taskChecks.add(completion);
+  }
+
+  function scheduleDrain() {
+    if (closed) return;
+    pendingDrain = true;
+    if (draining) return;
+    draining = drain().catch(() => console.error('Não foi possível atualizar a fila de verificações.'))
+      .finally(() => {
+        draining = undefined;
+        if (pendingDrain) scheduleDrain();
+      });
+  }
+
+  async function drain() {
+    pendingDrain = false;
+    const database = await open();
+    do {
+      pendingDrain = false;
+      while (!closed && checks.availableSlots()) {
+        const { tasks } = database.snapshot();
+        const byId = new Map(tasks.map(task => [task.id, task]));
+        const task = tasks.find(item => item.scheduledScript && ['pending', 'failed'].includes(item.state)
+          && item.dependencies.every(id => byId.get(id)?.state === 'done'));
+        if (!task) break;
+        const script = task.scheduledScript;
+        try {
+          const result = await database.beginTaskCheck({ id: task.id, script }, checks, true);
+          if (result) followRun(result.project, result.run, run => database.finishTaskCheck(task.id, run));
+        } catch (error) {
+          if (error.code === 'CHECK_CAPACITY') break;
+          if (error.code) throw error;
+          await database.failScheduledTask(task.id, script);
+        }
+      }
+    } while (pendingDrain && !closed);
+  }
 
   const handle = async (request, response, headers) => {
     const method = request.method;
@@ -60,13 +109,15 @@ export function createCommandApi(file, getActivity) {
       }
       try {
         const { action, data } = await readAction(request);
+        if (action === 'task.schedule') {
+          await database.scheduleTask(data, checks);
+          send(response, headers, 200, database.snapshot());
+          scheduleDrain();
+          return;
+        }
         if (action === 'task.check') {
           const { project, run } = await database.beginTaskCheck(data, checks);
-          const completion = checks.wait(project, run.id)
-            .then(result => database.finishTaskCheck(data.id, result))
-            .catch(() => console.error('Não foi possível registrar o resultado da tarefa.'))
-            .finally(() => taskChecks.delete(completion));
-          taskChecks.add(completion);
+          followRun(project, run, result => database.finishTaskCheck(data.id, result));
           send(response, headers, 200, database.snapshot());
           return;
         }
@@ -83,13 +134,15 @@ export function createCommandApi(file, getActivity) {
             send(response, headers, 404, { error: 'Execução não encontrada.' });
             return;
           }
+          if (action === 'check.start') followRun(project, run, () => {});
           send(response, headers, 200, { run });
           return;
         }
         const result = await database.mutate(action, data);
         send(response, headers, 200, ['git.stage', 'git.unstage'].includes(action) ? result : database.snapshot());
+        if (action === 'task.state') scheduleDrain();
       } catch (error) {
-        const message = error.code ? 'Não foi possível gravar a ação.' : error.message;
+        const message = error.code && error.code !== 'CHECK_CAPACITY' ? 'Não foi possível gravar a ação.' : error.message;
         send(response, headers, 400, { error: message });
       }
       return;
@@ -178,7 +231,10 @@ export function createCommandApi(file, getActivity) {
       resources: resources(),
     });
   };
+  handle.start = () => scheduleDrain();
   handle.close = async () => {
+    closed = true;
+    await draining;
     await checks.close();
     await Promise.all(taskChecks);
   };

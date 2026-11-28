@@ -78,6 +78,7 @@ const server = createServer(async (request, response) => {
     response.writeHead(503, headers).end('Arquivo indisponível');
   }
 }).listen(port, '127.0.0.1', () => {
+  commandApi.start();
   console.log('Painel disponível em http://127.0.0.1:' + port);
 });
 server.on('close', () => {

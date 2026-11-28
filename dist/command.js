@@ -12,7 +12,7 @@ const modelTiers = { economy: 'econômico', balanced: 'equilibrado', advanced: '
 const checkLabels = { running: 'Em execução', passed: 'Aprovada', failed: 'Falhou', cancelled: 'Cancelada', timed_out: 'Tempo limite', interrupted: 'Interrompida' };
 const actionLabels = {
   'project.create': 'Projeto cadastrado', 'objective.create': 'Objetivo criado',
-  'task.create': 'Tarefa criada', 'task.state': 'Estado da tarefa atualizado',
+  'task.create': 'Tarefa criada', 'task.state': 'Estado da tarefa atualizado', 'task.schedule': 'Agendamento atualizado',
   'objective.plan': 'Tarefas do plano registradas', 'approval.request': 'Aprovação solicitada', 'approval.requestPush': 'Aprovação de push solicitada',
   'approval.approve': 'Aprovação encaminhada', 'approval.reject': 'Aprovação rejeitada',
   'approval.edit': 'Aprovação editada', 'git.stage': 'Caminho preparado', 'git.unstage': 'Caminho retirado do índice',
@@ -143,13 +143,18 @@ function renderTasks() {
     select.disabled = check?.status === 'running';
     item.append(select);
     if (check) item.append(checkInfo(check));
-    if (!['pending', 'failed'].includes(task.state) || task.dependencies.some(id => state.tasks.find(item => item.id === id)?.state !== 'done')) return item;
+    const canSchedule = ['pending', 'failed'].includes(task.state);
+    if (!canSchedule) return item;
     const checkControls = element('div', undefined, 'task-check-controls');
     const script = element('select'); script.dataset.taskCheckScript = task.id; script.setAttribute('aria-label', 'Verificação de ' + task.title);
     script.append(new Option('Verificar…', ''), ...['lint', 'test', 'build', 'typecheck'].map(name => new Option(name, name)));
     const run = element('button', 'Executar verificação', 'button button-quiet'); run.type = 'button'; run.dataset.taskCheck = task.id; run.disabled = true;
-    script.addEventListener('change', () => { run.disabled = !script.value; });
-    checkControls.append(script, run); item.append(checkControls);
+    const runnable = task.dependencies.every(id => state.tasks.find(item => item.id === id)?.state === 'done');
+    const schedule = element('button', task.scheduledScript ? 'Limpar agendamento' : 'Agendar', 'button button-quiet'); schedule.type = 'button'; schedule.dataset.taskSchedule = task.id; schedule.dataset.taskScheduled = task.scheduledScript || '';
+    schedule.disabled = !task.scheduledScript;
+    script.addEventListener('change', () => { run.disabled = !script.value || !runnable; schedule.disabled = !task.scheduledScript && !script.value; });
+    checkControls.append(script, run, schedule); item.append(checkControls);
+    if (task.scheduledScript) item.append(element('p', 'Agendado: ' + task.scheduledScript, 'task-schedule-info'));
     return item;
   }
   const list = byId('tasks-list');
@@ -448,6 +453,7 @@ function showGraphNode(id) {
   ].filter(Boolean).join(' · ')));
   const check = node.check || state.tasks.find(task => task.id === node.id)?.check;
   if (check) detail.append(checkInfo(check));
+  if (node.scheduledScript) detail.append(element('p', 'Agendado: ' + node.scheduledScript, 'task-schedule-info'));
   if (node.dependencies.length) {
     const list = element('ul');
     for (const dependency of node.dependencies) {
@@ -755,6 +761,15 @@ document.addEventListener('click', event => {
 
 document.addEventListener('click', async event => {
   const button = event.target.closest('[data-task-check]');
+  const schedule = event.target.closest('[data-task-schedule]');
+  if (schedule) {
+    const script = schedule.dataset.taskScheduled || schedule.closest('.task-check-controls')?.querySelector('[data-task-check-script]')?.value;
+    if (!script && !schedule.dataset.taskScheduled) return;
+    schedule.disabled = true;
+    await mutate('task.schedule', { id: schedule.dataset.taskSchedule, script: schedule.dataset.taskScheduled ? null : script });
+    schedule.disabled = false;
+    return;
+  }
   if (!button) return;
   const script = button.closest('.task-check-controls')?.querySelector('[data-task-check-script]')?.value;
   if (!script) return;
