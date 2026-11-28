@@ -1353,19 +1353,66 @@ setInterval(() => {
 window.addEventListener('hashchange', highlightSection);
 highlightSection();
 configureCoordinatorJobsPolling();
-for (const key of ['theme', 'density']) {
-  const control = byId(key);
-  try {
-    const saved = localStorage.getItem('projeto-all.' + key);
-    if (Array.from(control.options).some(option => option.value === saved)) control.value = saved;
-  } catch {}
-  const apply = () => { document.documentElement.dataset[key] = control.value; };
-  control.addEventListener('change', () => {
-    apply();
-    try { localStorage.setItem('projeto-all.' + key, control.value); } catch {}
-  });
-  apply();
+const displayKey = 'projeto-all.display';
+const displayControls = ['theme', 'density', 'fontSize'].map(key => [key, byId(key)]);
+const displayDefaults = Object.fromEntries(displayControls.map(([key, control]) => [key, control.value]));
+const validDisplayValue = (control, value) => Array.from(control.options).some(option => option.value === value);
+function applyDisplay(values) {
+  for (const [key, control] of displayControls) {
+    control.value = validDisplayValue(control, values?.[key]) ? values[key] : displayDefaults[key];
+    document.documentElement.dataset[key] = control.value;
+  }
 }
+function displaySnapshot() {
+  return Object.fromEntries(displayControls.map(([key, control]) => [key, control.value]));
+}
+function saveDisplay(message = 'Preferências salvas neste navegador.') {
+  applyDisplay(displaySnapshot());
+  try {
+    localStorage.setItem(displayKey, JSON.stringify(displaySnapshot()));
+    setText('display-feedback', message);
+  } catch {
+    setText('display-feedback', 'Preferências aplicadas nesta página. O navegador impediu o armazenamento.');
+  }
+}
+try {
+  const stored = localStorage.getItem(displayKey);
+  applyDisplay(stored ? JSON.parse(stored) : {
+    theme: localStorage.getItem('projeto-all.theme'),
+    density: localStorage.getItem('projeto-all.density'),
+  });
+} catch { applyDisplay(displayDefaults); }
+for (const [, control] of displayControls) control.addEventListener('change', () => saveDisplay());
+byId('display-reset').addEventListener('click', () => {
+  applyDisplay(displayDefaults);
+  saveDisplay('Preferências padrão restauradas.');
+});
+byId('display-export').addEventListener('click', () => {
+  const file = new Blob([JSON.stringify({ version: 1, ...displaySnapshot() }, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(file);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'projeto-all-preferencias.json';
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+byId('display-import').addEventListener('change', async event => {
+  const input = event.currentTarget;
+  const [file] = input.files;
+  if (!file) return;
+  input.value = '';
+  try {
+    if (file.size > 4096) throw new Error();
+    const values = JSON.parse(await file.text());
+    if (values?.version !== 1 || !displayControls.every(([key, control]) => validDisplayValue(control, values[key]))) {
+      throw new Error();
+    }
+    applyDisplay(values);
+    saveDisplay('Preferências importadas.');
+  } catch {
+    setText('display-feedback', 'Arquivo inválido. Selecione um JSON exportado pelas preferências.');
+  }
+});
 try {
   if (localStorage.getItem('projeto-all.task-view') === 'board') byId('task-view').value = 'board';
 } catch {}

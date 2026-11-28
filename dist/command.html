@@ -146,7 +146,12 @@
           <div class="inspection-controls">
             <label>Tema <select id="theme"><option value="dark">Escuro</option><option value="light">Claro</option><option value="auto">Automático</option></select></label>
             <label>Densidade <select id="density"><option value="comfortable">Confortável</option><option value="compact">Compacta</option></select></label>
+            <label>Texto <select id="fontSize"><option value="standard">Padrão</option><option value="large">Grande</option><option value="extra-large">Extragrande</option></select></label>
+            <button type="button" class="button" id="display-export">Exportar</button>
+            <label>Importar preferências <input id="display-import" type="file" accept=".json,application/json"></label>
+            <button type="button" class="button" id="display-reset">Restaurar padrão</button>
           </div>
+          <p class="form-feedback" id="display-feedback" role="status"></p>
         </details>
         <section class="panel forms-panel" id="actions" aria-labelledby="actions-title"><header class="panel-header"><div><p class="eyebrow">AÇÕES LOCAIS</p><h2 id="actions-title">Registrar trabalho</h2></div><span class="panel-meta">persistido no serviço local</span></header><div class="forms-grid">
           <form id="project-form" data-action="project.create"><h3>Novo projeto</h3><label>Nome<input name="name" required autocomplete="off" placeholder="projeto-all"></label><label>Caminho<input name="path" required autocomplete="off" placeholder="C:\\workspace\\projeto"></label><button class="button" type="submit">Adicionar projeto</button></form>

@@ -47,6 +47,7 @@
 ## 5. Interface e verificação
 
 - [ ] Implementar Kanban, grafo, agentes, painéis, widgets, temas e presets.
+- [x] Persistir tema, densidade e tamanho do texto, com exportação, importação e restauração dos padrões.
 - [x] Visualizar o grafo de dependências do objetivo com estados, prontidão e detalhes navegáveis de cada tarefa.
 - [ ] Compartilhar tokens com a interface do WebView e preservar acessibilidade.
 - [ ] Validar fluxos reais em desktop, tablet, ultrawide e Android, inclusive perda de conexão e recuperação.
